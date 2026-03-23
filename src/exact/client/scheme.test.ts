@@ -150,10 +150,7 @@ describe("ExactSuiClientScheme", () => {
       const signer = createMockSigner();
       const scheme = new ExactSuiClientScheme(signer);
 
-      await scheme.createPaymentPayload(
-        1,
-        makeRequirements({ extra: { gasBudget: 50000 } }),
-      );
+      await scheme.createPaymentPayload(1, makeRequirements({ extra: { gasBudget: 50000 } }));
 
       expect(mockTxInstance.setGasBudget).toHaveBeenCalledWith(BigInt(50000));
     });
@@ -168,10 +165,7 @@ describe("ExactSuiClientScheme", () => {
       const signer = createMockSigner();
       const scheme = new ExactSuiClientScheme(signer);
 
-      await scheme.createPaymentPayload(
-        1,
-        makeRequirements({ extra: { gasOwner } }),
-      );
+      await scheme.createPaymentPayload(1, makeRequirements({ extra: { gasOwner } }));
 
       expect(mockTxInstance.setGasOwner).toHaveBeenCalledWith(gasOwner);
     });
@@ -213,10 +207,7 @@ describe("ExactSuiClientScheme", () => {
       const signer = createMockSigner();
       const scheme = new ExactSuiClientScheme(signer);
 
-      await scheme.createPaymentPayload(
-        1,
-        makeRequirements({ extra: { gasBudget: "100000" } }),
-      );
+      await scheme.createPaymentPayload(1, makeRequirements({ extra: { gasBudget: "100000" } }));
 
       expect(mockTxInstance.setGasBudget).toHaveBeenCalledWith(BigInt("100000"));
     });

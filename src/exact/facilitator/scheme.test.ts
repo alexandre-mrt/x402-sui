@@ -362,10 +362,7 @@ describe("ExactSuiFacilitatorScheme", () => {
       });
       const scheme = new ExactSuiFacilitatorScheme(signer);
 
-      const result = await scheme.verify(
-        makePayload(),
-        makeRequirements({ amount: largeAmount }),
-      );
+      const result = await scheme.verify(makePayload(), makeRequirements({ amount: largeAmount }));
 
       expect(result.isValid).toBe(true);
     });
