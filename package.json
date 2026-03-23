@@ -1,0 +1,42 @@
+{
+  "name": "@x402/sui",
+  "version": "0.1.0",
+  "description": "x402 payment protocol implementation for the Sui blockchain",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "README.md", "LICENSE"],
+  "scripts": {
+    "build": "bun build ./src/index.ts --outdir ./dist --target node --format esm && bun run build:types",
+    "build:types": "tsc --declaration --emitDeclarationOnly --outDir dist",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "bunx biome check --write .",
+    "check": "tsc --noEmit"
+  },
+  "keywords": ["x402", "sui", "payments", "http-402", "stablecoin", "usdc"],
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/alexandremourot/x402-sui.git"
+  },
+  "dependencies": {
+    "@mysten/sui": "^2.9.1",
+    "@x402/core": "^2.8.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.8",
+    "@types/bun": "latest",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.1"
+  },
+  "peerDependencies": {
+    "@mysten/sui": ">=2.0.0"
+  }
+}
