@@ -5,6 +5,7 @@ import { ExactSuiFacilitatorScheme } from "./scheme.js";
 
 const VALID_ADDRESS = `0x${"aa".repeat(32)}`;
 const PAY_TO = `0x${"bb".repeat(32)}`;
+const GAS_OWNER_ADDRESS = `0x${"cc".repeat(32)}`;
 const NETWORK = "sui:mainnet";
 
 function createMockSigner(overrides: Partial<FacilitatorSuiSigner> = {}): FacilitatorSuiSigner {
@@ -442,7 +443,7 @@ describe("ExactSuiFacilitatorScheme", () => {
       const scheme = new ExactSuiFacilitatorScheme(signer);
 
       const requirements = makeRequirements({
-        extra: { gasOwner: VALID_ADDRESS },
+        extra: { gasOwner: GAS_OWNER_ADDRESS },
       });
 
       const result = await scheme.settle(makePayload(), requirements);
@@ -484,7 +485,7 @@ describe("ExactSuiFacilitatorScheme", () => {
       const scheme = new ExactSuiFacilitatorScheme(signer);
 
       const requirements = makeRequirements({
-        extra: { gasOwner: VALID_ADDRESS },
+        extra: { gasOwner: GAS_OWNER_ADDRESS },
       });
 
       const result = await scheme.settle(makePayload(), requirements);

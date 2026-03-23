@@ -64,9 +64,9 @@ export class ExactSuiClientScheme implements SchemeNetworkClient {
       tx.setGasBudget(BigInt(gasBudget));
     }
 
-    // If a gas sponsor (facilitator) is specified, use sponsored transaction
+    // If a gas sponsor (facilitator) is specified and differs from sender, use sponsored transaction
     const gasOwner = paymentRequirements.extra?.gasOwner;
-    if (typeof gasOwner === "string") {
+    if (typeof gasOwner === "string" && gasOwner !== this.signer.address) {
       tx.setGasOwner(gasOwner);
     }
 

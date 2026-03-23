@@ -147,9 +147,9 @@ export class ExactSuiFacilitatorScheme implements SchemeNetworkFacilitator {
       // Collect signatures: client signature + optional facilitator co-signature for gas sponsorship
       const signatures = [suiPayload.signature];
 
+      // Gas-sponsored transaction: facilitator co-signs only if gasOwner differs from payer
       const gasOwner = requirements.extra?.gasOwner;
-      if (typeof gasOwner === "string") {
-        // Gas-sponsored transaction: facilitator co-signs as gas owner
+      if (typeof gasOwner === "string" && verifyResult.payer && gasOwner !== verifyResult.payer) {
         const txBytes = Buffer.from(suiPayload.transaction, "base64");
         const { signature: facilitatorSig } = await this.signer.signTransaction(txBytes);
         signatures.push(facilitatorSig);
