@@ -80,7 +80,7 @@ Implement x402 payment protocol support for the Sui blockchain as a standalone T
 - Lint: pass (0 errors)
 - Visual: N/A
 
-### Stats
+### Stats (Phase 1)
 - Files created: 22
 - Files modified: 0
 - Tests: 42 pass / 0 fail
@@ -113,8 +113,42 @@ Implement x402 payment protocol support for the Sui blockchain as a standalone T
 - Registration functions follow exact SVM pattern for ecosystem consistency
 - Multi-signature support added to FacilitatorSuiSigner.executeTransaction
 
-### Final validation
+### Final validation (Phase 2)
 - Build: type check passes
 - Tests: 142 pass / 0 fail
 - Lint: pass (0 errors)
 - Visual: N/A
+
+---
+
+## Night Shift Phase 3 — 2026-03-24
+
+### Objective
+Extend @x402/sui with extensions (SIWx, Offer/Receipt, Payment Identifier), multi-token support, MCP integration for AI agents, and npm publish setup.
+
+### Completed
+- [x] Multi-token support: token registry (USDC, SUI, AUSD, wUSDT, FDUSD), CoinMetadataCache, MoneyParser factories
+- [x] Payment Identifier extension: generatePaymentId(), validation, server/client hooks
+- [x] Sign-In-With-X (SIWx) for Sui: CAIP-122 message format, Ed25519 signature verification via @mysten/sui/verify, InMemorySIWxStorage, settle/request hooks
+- [x] Offer/Receipt extension: JWS signing via jose, server extension with offer/receipt enrichment, client extraction utilities
+- [x] MCP integration: createSuiPaymentWrapper() for paid MCP tools, utility functions for payment meta extraction, example MCP server
+- [x] npm publish setup: tsup ESM build, prepublishOnly scripts, npm pack verified (6 files)
+
+### Decisions made
+- JWS format for Offer/Receipt (chain-agnostic, no EIP-712 dependency)
+- Used @mysten/sui/verify for SIWx signature verification (native SDK, no extra deps)
+- CAIP-122 ABNF message format for Sui SIWx (following Solana pattern)
+- tsup for build (faster, simpler than manual bun build + tsc)
+- @modelcontextprotocol/sdk as peer dependency for MCP integration
+
+### Final validation (Phase 3)
+- Build: pass (tsup, 60KB ESM + 16KB DTS)
+- Tests: 236 pass / 0 fail / 8 skipped (integration)
+- Lint: pass (0 errors)
+
+### Stats (Phase 3)
+- New files: ~30
+- Test files: 16 total
+- Tests: 236 pass (up from 150)
+- Extensions: 3 (Payment Identifier, SIWx, Offer/Receipt)
+- Commits: ~15 on branch
