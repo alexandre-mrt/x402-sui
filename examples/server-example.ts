@@ -8,21 +8,17 @@
  * Replace placeholder values with real addresses and endpoints.
  */
 
-import { paymentMiddleware, x402ResourceServer } from "@x402/express";
-import {
-  ExactSuiFacilitatorScheme,
-  ExactSuiServerScheme,
-  toFacilitatorSuiSigner,
-} from "@x402/sui";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
+import { paymentMiddleware, x402ResourceServer } from "@x402/express";
+import { ExactSuiFacilitatorScheme, ExactSuiServerScheme, toFacilitatorSuiSigner } from "@x402/sui";
 import express from "express";
 
 // ---------------------------------------------------------------------------
 // 1. Create a Sui keypair for the facilitator (gas sponsor)
 // ---------------------------------------------------------------------------
-const facilitatorKeypair = Ed25519Keypair.fromSecretKey(
-  process.env.FACILITATOR_PRIVATE_KEY!,
-);
+const privateKey = process.env.FACILITATOR_PRIVATE_KEY;
+if (!privateKey) throw new Error("FACILITATOR_PRIVATE_KEY env var is required");
+const facilitatorKeypair = Ed25519Keypair.fromSecretKey(privateKey);
 
 // ---------------------------------------------------------------------------
 // 2. Create signer and scheme instances
@@ -49,8 +45,7 @@ const resourceServer = x402ResourceServer({
 const app = express();
 
 // The address that receives USDC payments
-const RESOURCE_OWNER_ADDRESS =
-  "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
+const RESOURCE_OWNER_ADDRESS = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
 
 app.use(
   "/premium",

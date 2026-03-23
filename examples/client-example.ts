@@ -8,14 +8,16 @@
  * Replace placeholder values with real addresses and endpoints.
  */
 
+import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { wrapFetchWithPayment } from "@x402/fetch";
 import { ExactSuiClientScheme, toClientSuiSigner } from "@x402/sui";
-import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 
 // ---------------------------------------------------------------------------
 // 1. Create a Sui keypair from a private key (never commit real keys)
 // ---------------------------------------------------------------------------
-const keypair = Ed25519Keypair.fromSecretKey(process.env.SUI_PRIVATE_KEY!);
+const privateKey = process.env.SUI_PRIVATE_KEY;
+if (!privateKey) throw new Error("SUI_PRIVATE_KEY env var is required");
+const keypair = Ed25519Keypair.fromSecretKey(privateKey);
 
 // ---------------------------------------------------------------------------
 // 2. Wrap the keypair into a ClientSuiSigner

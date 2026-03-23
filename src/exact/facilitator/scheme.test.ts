@@ -61,10 +61,7 @@ describe("ExactSuiFacilitatorScheme", () => {
       const signer = createMockSigner();
       const scheme = new ExactSuiFacilitatorScheme(signer);
 
-      const result = await scheme.verify(
-        makePayload(),
-        makeRequirements({ network: "eip155:1" }),
-      );
+      const result = await scheme.verify(makePayload(), makeRequirements({ network: "eip155:1" }));
 
       expect(result.isValid).toBe(false);
       expect(result.invalidReason).toBe("unsupported_network");
@@ -74,10 +71,7 @@ describe("ExactSuiFacilitatorScheme", () => {
       const signer = createMockSigner();
       const scheme = new ExactSuiFacilitatorScheme(signer);
 
-      const result = await scheme.verify(
-        makePayload(),
-        makeRequirements({ payTo: "0xinvalid" }),
-      );
+      const result = await scheme.verify(makePayload(), makeRequirements({ payTo: "0xinvalid" }));
 
       expect(result.isValid).toBe(false);
       expect(result.invalidReason).toBe("invalid_pay_to");

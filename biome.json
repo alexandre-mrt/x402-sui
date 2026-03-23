@@ -24,6 +24,12 @@
     }
   },
   "files": {
-    "includes": ["src/**/*.ts", "examples/**/*.ts", "vitest.config.ts", "!!**/node_modules", "!!**/dist"]
+    "includes": [
+      "src/**/*.ts",
+      "examples/**/*.ts",
+      "vitest.config.ts",
+      "!!**/node_modules",
+      "!!**/dist"
+    ]
   }
 }
