@@ -27,36 +27,41 @@ export class ExactSuiClientScheme implements SchemeNetworkClient {
     const tx = new Transaction();
     tx.setSender(this.signer.address);
 
-    // Get USDC coins owned by the sender
-    const coins = await client.getCoins({
-      owner: this.signer.address,
-      coinType: paymentRequirements.asset,
-    });
-
-    if (coins.data.length === 0) {
-      throw new Error(
-        `No ${paymentRequirements.asset} coins found for address ${this.signer.address}`,
-      );
-    }
-
     const amount = BigInt(paymentRequirements.amount);
+    const isSuiNative = paymentRequirements.asset === "0x2::sui::SUI";
 
-    // If we have multiple coins, merge them first
-    const firstCoin = coins.data[0];
-    if (!firstCoin) {
-      throw new Error("No coins available after balance check");
-    }
-    const primaryCoin = tx.object(firstCoin.coinObjectId);
-    if (coins.data.length > 1) {
-      tx.mergeCoins(
-        primaryCoin,
-        coins.data.slice(1).map((c: { coinObjectId: string }) => tx.object(c.coinObjectId)),
-      );
-    }
+    if (isSuiNative) {
+      // For SUI native: split from gas coin directly (avoids gas conflict)
+      const splitResult = tx.splitCoins(tx.gas, [amount]);
+      tx.transferObjects([splitResult], paymentRequirements.payTo);
+    } else {
+      // For other tokens: fetch coin objects and merge if needed
+      const coins = await client.getCoins({
+        owner: this.signer.address,
+        coinType: paymentRequirements.asset,
+      });
 
-    // Split the exact amount and transfer to recipient
-    const splitResult = tx.splitCoins(primaryCoin, [amount]);
-    tx.transferObjects([splitResult], paymentRequirements.payTo);
+      if (coins.data.length === 0) {
+        throw new Error(
+          `No ${paymentRequirements.asset} coins found for address ${this.signer.address}`,
+        );
+      }
+
+      const firstCoin = coins.data[0];
+      if (!firstCoin) {
+        throw new Error("No coins available after balance check");
+      }
+      const primaryCoin = tx.object(firstCoin.coinObjectId);
+      if (coins.data.length > 1) {
+        tx.mergeCoins(
+          primaryCoin,
+          coins.data.slice(1).map((c: { coinObjectId: string }) => tx.object(c.coinObjectId)),
+        );
+      }
+
+      const splitResult = tx.splitCoins(primaryCoin, [amount]);
+      tx.transferObjects([splitResult], paymentRequirements.payTo);
+    }
 
     // Set gas budget if specified
     const gasBudget = paymentRequirements.extra?.gasBudget;
