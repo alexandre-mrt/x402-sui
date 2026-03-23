@@ -78,6 +78,17 @@ export {
 export type { FacilitatorServerConfig } from "./facilitator/index.js";
 // Facilitator server
 export { createFacilitatorServer } from "./facilitator/index.js";
+// MCP integration
+export type { MCPToolPaymentConfig, PaymentWrapperConfig } from "./mcp/index.js";
+export {
+  attachPaymentResponseToMeta,
+  createPaymentRequiredError,
+  createSuiPaymentWrapper,
+  extractPaymentFromMeta,
+  MCP_PAYMENT_META_KEY,
+  MCP_PAYMENT_REQUIRED_CODE,
+  MCP_PAYMENT_RESPONSE_META_KEY,
+} from "./mcp/index.js";
 // Money parsers
 export { createSuiMoneyParser, createTokenMoneyParser } from "./money-parser.js";
 // Settlement cache
