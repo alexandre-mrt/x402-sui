@@ -2,9 +2,7 @@ import type { SIWxPayload, SIWxStorage } from "./types.js";
 import { SIWX_HEADER } from "./types.js";
 import { verifySuiSIWxSignature } from "./verify.js";
 
-export interface AfterSettleHook {
-  (payerAddress: string, resourceUrl: string): Promise<void>;
-}
+export type AfterSettleHook = (payerAddress: string, resourceUrl: string) => Promise<void>;
 
 export function createSIWxSettleHook(storage: SIWxStorage): AfterSettleHook {
   return async (payerAddress: string, resourceUrl: string): Promise<void> => {

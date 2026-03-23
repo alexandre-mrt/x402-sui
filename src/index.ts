@@ -56,3 +56,43 @@ export {
   appendPaymentIdentifierToExtensions,
 } from "./extensions/payment-identifier/index.js";
 export type { PaymentIdentifierInfo } from "./extensions/payment-identifier/index.js";
+
+// Extensions: Sign-In-With-X (SIWx)
+export {
+  createSIWxPayload,
+  createSIWxRequestHook,
+  createSIWxSettleHook,
+  encodeSIWxHeader,
+  formatSuiSIWxMessage,
+  InMemorySIWxStorage,
+  SIGN_IN_WITH_X,
+  SIWX_HEADER,
+  verifySuiSIWxSignature,
+} from "./extensions/siwx/index.js";
+export type {
+  AfterSettleHook,
+  SIWxExtensionInfo,
+  SIWxPayload,
+  SIWxRequestResult,
+  SIWxStorage,
+} from "./extensions/siwx/index.js";
+
+// Extensions: Offer/Receipt
+export {
+  createJWS,
+  createOfferReceiptExtension,
+  declareOfferReceiptExtension,
+  extractJWSPayload,
+  extractOffersFromPaymentRequired,
+  extractReceiptFromResponse,
+  OFFER_RECEIPT,
+  verifyJWS,
+} from "./extensions/offer-receipt/index.js";
+export type {
+  OfferPayload,
+  OfferReceiptDeclaration,
+  OfferReceiptIssuer,
+  ReceiptPayload,
+  SignedOffer,
+  SignedReceipt,
+} from "./extensions/offer-receipt/index.js";
