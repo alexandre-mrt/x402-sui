@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { USDC_MAINNET_COIN_TYPE } from "../../constants.js";
+import { USDC_MAINNET_COIN_TYPE, USDC_TESTNET_COIN_TYPE } from "../../constants.js";
 import type { FacilitatorSuiSigner } from "../../signer.js";
 import { ExactSuiFacilitatorScheme } from "./scheme.js";
 
@@ -11,6 +11,7 @@ function createMockSigner(overrides: Partial<FacilitatorSuiSigner> = {}): Facili
   return {
     getAddresses: vi.fn(() => [VALID_ADDRESS]),
     dryRunTransaction: vi.fn(),
+    signTransaction: vi.fn().mockResolvedValue({ signature: "facilitator-sig", bytes: "bytes" }),
     executeTransaction: vi.fn(),
     waitForTransaction: vi.fn(),
     ...overrides,
@@ -41,7 +42,48 @@ function makePayload(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function successDryRun(amount = "1000000") {
+  return vi.fn().mockResolvedValue({
+    effects: { status: { status: "success" } },
+    balanceChanges: [
+      {
+        owner: { AddressOwner: PAY_TO },
+        coinType: USDC_MAINNET_COIN_TYPE,
+        amount,
+      },
+      {
+        owner: { AddressOwner: VALID_ADDRESS },
+        coinType: USDC_MAINNET_COIN_TYPE,
+        amount: `-${amount}`,
+      },
+    ],
+  });
+}
+
 describe("ExactSuiFacilitatorScheme", () => {
+  describe("getExtra", () => {
+    it("returns gasOwner from signer addresses", () => {
+      const signer = createMockSigner();
+      const scheme = new ExactSuiFacilitatorScheme(signer);
+      const extra = scheme.getExtra(NETWORK);
+      expect(extra).toHaveProperty("gasOwner", VALID_ADDRESS);
+    });
+
+    it("returns undefined when signer has no addresses", () => {
+      const signer = createMockSigner({ getAddresses: vi.fn(() => []) });
+      const scheme = new ExactSuiFacilitatorScheme(signer);
+      expect(scheme.getExtra(NETWORK)).toBeUndefined();
+    });
+  });
+
+  describe("getSigners", () => {
+    it("returns signer addresses", () => {
+      const signer = createMockSigner();
+      const scheme = new ExactSuiFacilitatorScheme(signer);
+      expect(scheme.getSigners(NETWORK)).toEqual([VALID_ADDRESS]);
+    });
+  });
+
   describe("verify", () => {
     it("returns invalid when scheme is not exact", async () => {
       const signer = createMockSigner();
@@ -92,21 +134,7 @@ describe("ExactSuiFacilitatorScheme", () => {
 
     it("returns valid when dry run succeeds with correct balance changes", async () => {
       const signer = createMockSigner({
-        dryRunTransaction: vi.fn().mockResolvedValue({
-          effects: { status: { status: "success" } },
-          balanceChanges: [
-            {
-              owner: { AddressOwner: PAY_TO },
-              coinType: USDC_MAINNET_COIN_TYPE,
-              amount: "1000000",
-            },
-            {
-              owner: { AddressOwner: VALID_ADDRESS },
-              coinType: USDC_MAINNET_COIN_TYPE,
-              amount: "-1000000",
-            },
-          ],
-        }),
+        dryRunTransaction: successDryRun(),
       });
       const scheme = new ExactSuiFacilitatorScheme(signer);
 
@@ -151,10 +179,198 @@ describe("ExactSuiFacilitatorScheme", () => {
       expect(result.isValid).toBe(false);
       expect(result.invalidReason).toBe("insufficient_payment");
     });
-  });
 
-  describe("settle", () => {
-    it("returns duplicate_settlement for repeated settlement", async () => {
+    // --- Edge cases ---
+
+    it("returns valid when amount is zero and balance change is zero", async () => {
+      const signer = createMockSigner({
+        dryRunTransaction: vi.fn().mockResolvedValue({
+          effects: { status: { status: "success" } },
+          balanceChanges: [
+            {
+              owner: { AddressOwner: PAY_TO },
+              coinType: USDC_MAINNET_COIN_TYPE,
+              amount: "0",
+            },
+          ],
+        }),
+      });
+      const scheme = new ExactSuiFacilitatorScheme(signer);
+
+      const result = await scheme.verify(makePayload(), makeRequirements({ amount: "0" }));
+
+      expect(result.isValid).toBe(true);
+    });
+
+    it("returns valid when recipient receives more than required", async () => {
+      const signer = createMockSigner({
+        dryRunTransaction: vi.fn().mockResolvedValue({
+          effects: { status: { status: "success" } },
+          balanceChanges: [
+            {
+              owner: { AddressOwner: PAY_TO },
+              coinType: USDC_MAINNET_COIN_TYPE,
+              amount: "2000000", // more than required 1000000
+            },
+            {
+              owner: { AddressOwner: VALID_ADDRESS },
+              coinType: USDC_MAINNET_COIN_TYPE,
+              amount: "-2000000",
+            },
+          ],
+        }),
+      });
+      const scheme = new ExactSuiFacilitatorScheme(signer);
+
+      const result = await scheme.verify(makePayload(), makeRequirements());
+
+      expect(result.isValid).toBe(true);
+      expect(result.payer).toBe(VALID_ADDRESS);
+    });
+
+    it("returns invalid when coin type does not match", async () => {
+      const signer = createMockSigner({
+        dryRunTransaction: vi.fn().mockResolvedValue({
+          effects: { status: { status: "success" } },
+          balanceChanges: [
+            {
+              owner: { AddressOwner: PAY_TO },
+              coinType: USDC_TESTNET_COIN_TYPE, // wrong coin type
+              amount: "1000000",
+            },
+          ],
+        }),
+      });
+      const scheme = new ExactSuiFacilitatorScheme(signer);
+
+      const result = await scheme.verify(makePayload(), makeRequirements());
+
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe("insufficient_payment");
+    });
+
+    it("returns invalid when transaction is empty string in payload", async () => {
+      const signer = createMockSigner();
+      const scheme = new ExactSuiFacilitatorScheme(signer);
+
+      const payload = makePayload();
+      payload.payload = { transaction: "", signature: "c2lnbmF0dXJl" };
+
+      const result = await scheme.verify(payload, makeRequirements());
+
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe("invalid_payload");
+    });
+
+    it("returns invalid when signature is empty string in payload", async () => {
+      const signer = createMockSigner();
+      const scheme = new ExactSuiFacilitatorScheme(signer);
+
+      const payload = makePayload();
+      payload.payload = { transaction: "dHhieXRlcw==", signature: "" };
+
+      const result = await scheme.verify(payload, makeRequirements());
+
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe("invalid_payload");
+    });
+
+    it("returns verification_error when dryRun throws exception", async () => {
+      const signer = createMockSigner({
+        dryRunTransaction: vi.fn().mockRejectedValue(new Error("RPC connection failed")),
+      });
+      const scheme = new ExactSuiFacilitatorScheme(signer);
+
+      const result = await scheme.verify(makePayload(), makeRequirements());
+
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe("verification_error");
+      expect(result.invalidMessage).toBe("RPC connection failed");
+    });
+
+    it("handles multiple balance changes with same coin type for different owners", async () => {
+      const thirdParty = `0x${"cc".repeat(32)}`;
+      const signer = createMockSigner({
+        dryRunTransaction: vi.fn().mockResolvedValue({
+          effects: { status: { status: "success" } },
+          balanceChanges: [
+            {
+              owner: { AddressOwner: thirdParty },
+              coinType: USDC_MAINNET_COIN_TYPE,
+              amount: "500000", // not enough for a different address
+            },
+            {
+              owner: { AddressOwner: PAY_TO },
+              coinType: USDC_MAINNET_COIN_TYPE,
+              amount: "1000000",
+            },
+            {
+              owner: { AddressOwner: VALID_ADDRESS },
+              coinType: USDC_MAINNET_COIN_TYPE,
+              amount: "-1500000",
+            },
+          ],
+        }),
+      });
+      const scheme = new ExactSuiFacilitatorScheme(signer);
+
+      const result = await scheme.verify(makePayload(), makeRequirements());
+
+      expect(result.isValid).toBe(true);
+      expect(result.payer).toBe(VALID_ADDRESS);
+    });
+
+    it("ignores balance changes with ObjectOwner (not AddressOwner)", async () => {
+      const signer = createMockSigner({
+        dryRunTransaction: vi.fn().mockResolvedValue({
+          effects: { status: { status: "success" } },
+          balanceChanges: [
+            {
+              owner: { ObjectOwner: PAY_TO }, // ObjectOwner, not AddressOwner
+              coinType: USDC_MAINNET_COIN_TYPE,
+              amount: "1000000",
+            },
+          ],
+        }),
+      });
+      const scheme = new ExactSuiFacilitatorScheme(signer);
+
+      const result = await scheme.verify(makePayload(), makeRequirements());
+
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe("insufficient_payment");
+    });
+
+    it("returns valid with very large amount (no overflow with BigInt)", async () => {
+      const largeAmount = "999999999999999999999";
+      const signer = createMockSigner({
+        dryRunTransaction: vi.fn().mockResolvedValue({
+          effects: { status: { status: "success" } },
+          balanceChanges: [
+            {
+              owner: { AddressOwner: PAY_TO },
+              coinType: USDC_MAINNET_COIN_TYPE,
+              amount: largeAmount,
+            },
+            {
+              owner: { AddressOwner: VALID_ADDRESS },
+              coinType: USDC_MAINNET_COIN_TYPE,
+              amount: `-${largeAmount}`,
+            },
+          ],
+        }),
+      });
+      const scheme = new ExactSuiFacilitatorScheme(signer);
+
+      const result = await scheme.verify(
+        makePayload(),
+        makeRequirements({ amount: largeAmount }),
+      );
+
+      expect(result.isValid).toBe(true);
+    });
+
+    it("returns payer as undefined when no negative balance change exists", async () => {
       const signer = createMockSigner({
         dryRunTransaction: vi.fn().mockResolvedValue({
           effects: { status: { status: "success" } },
@@ -164,13 +380,23 @@ describe("ExactSuiFacilitatorScheme", () => {
               coinType: USDC_MAINNET_COIN_TYPE,
               amount: "1000000",
             },
-            {
-              owner: { AddressOwner: VALID_ADDRESS },
-              coinType: USDC_MAINNET_COIN_TYPE,
-              amount: "-1000000",
-            },
+            // No negative balance change (payer)
           ],
         }),
+      });
+      const scheme = new ExactSuiFacilitatorScheme(signer);
+
+      const result = await scheme.verify(makePayload(), makeRequirements());
+
+      expect(result.isValid).toBe(true);
+      expect(result.payer).toBeUndefined();
+    });
+  });
+
+  describe("settle", () => {
+    it("returns duplicate_settlement for repeated settlement", async () => {
+      const signer = createMockSigner({
+        dryRunTransaction: successDryRun(),
         executeTransaction: vi.fn().mockResolvedValue({ digest: "txdigest123" }),
         waitForTransaction: vi.fn().mockResolvedValue({
           digest: "txdigest123",
@@ -181,14 +407,172 @@ describe("ExactSuiFacilitatorScheme", () => {
       const payload = makePayload();
       const requirements = makeRequirements();
 
-      // First settlement should succeed
       const first = await scheme.settle(payload, requirements);
       expect(first.success).toBe(true);
 
-      // Second settlement with same payload should be duplicate
       const second = await scheme.settle(payload, requirements);
       expect(second.success).toBe(false);
       expect(second.errorReason).toBe("duplicate_settlement");
+    });
+
+    it("returns failure when verification fails", async () => {
+      const signer = createMockSigner({
+        dryRunTransaction: vi.fn().mockResolvedValue({
+          effects: { status: { status: "failure" } },
+          balanceChanges: [],
+        }),
+      });
+      const scheme = new ExactSuiFacilitatorScheme(signer);
+
+      const result = await scheme.settle(makePayload(), makeRequirements());
+
+      expect(result.success).toBe(false);
+      expect(result.errorReason).toBe("simulation_failed");
+    });
+
+    it("co-signs as gas sponsor when gasOwner is in requirements.extra", async () => {
+      const signFn = vi.fn().mockResolvedValue({ signature: "facilitator-sig", bytes: "bytes" });
+      const executeFn = vi.fn().mockResolvedValue({ digest: "txdigest-gas" });
+      const signer = createMockSigner({
+        dryRunTransaction: successDryRun(),
+        signTransaction: signFn,
+        executeTransaction: executeFn,
+        waitForTransaction: vi.fn().mockResolvedValue({
+          digest: "txdigest-gas",
+          effects: { status: { status: "success" } },
+        }),
+      });
+      const scheme = new ExactSuiFacilitatorScheme(signer);
+
+      const requirements = makeRequirements({
+        extra: { gasOwner: VALID_ADDRESS },
+      });
+
+      const result = await scheme.settle(makePayload(), requirements);
+
+      expect(result.success).toBe(true);
+      // Should have called signTransaction for co-signing
+      expect(signFn).toHaveBeenCalled();
+      // Should execute with 2 signatures (client + facilitator)
+      expect(executeFn).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.arrayContaining(["c2lnbmF0dXJl", "facilitator-sig"]),
+      );
+    });
+
+    it("executes with single signature when no gasOwner", async () => {
+      const executeFn = vi.fn().mockResolvedValue({ digest: "txdigest" });
+      const signer = createMockSigner({
+        dryRunTransaction: successDryRun(),
+        executeTransaction: executeFn,
+        waitForTransaction: vi.fn().mockResolvedValue({
+          digest: "txdigest",
+          effects: { status: { status: "success" } },
+        }),
+      });
+      const scheme = new ExactSuiFacilitatorScheme(signer);
+
+      const result = await scheme.settle(makePayload(), makeRequirements());
+
+      expect(result.success).toBe(true);
+      // Only client signature
+      expect(executeFn).toHaveBeenCalledWith("dHhieXRlcw==", ["c2lnbmF0dXJl"]);
+    });
+
+    it("returns settlement_error when signTransaction fails", async () => {
+      const signer = createMockSigner({
+        dryRunTransaction: successDryRun(),
+        signTransaction: vi.fn().mockRejectedValue(new Error("Signing failed")),
+      });
+      const scheme = new ExactSuiFacilitatorScheme(signer);
+
+      const requirements = makeRequirements({
+        extra: { gasOwner: VALID_ADDRESS },
+      });
+
+      const result = await scheme.settle(makePayload(), requirements);
+
+      expect(result.success).toBe(false);
+      expect(result.errorReason).toBe("settlement_error");
+      expect(result.errorMessage).toBe("Signing failed");
+    });
+
+    it("returns settlement_error when executeTransaction fails", async () => {
+      const signer = createMockSigner({
+        dryRunTransaction: successDryRun(),
+        executeTransaction: vi.fn().mockRejectedValue(new Error("Execution failed")),
+      });
+      const scheme = new ExactSuiFacilitatorScheme(signer);
+
+      const result = await scheme.settle(makePayload(), makeRequirements());
+
+      expect(result.success).toBe(false);
+      expect(result.errorReason).toBe("settlement_error");
+      expect(result.errorMessage).toBe("Execution failed");
+    });
+
+    it("returns settlement_error when waitForTransaction times out", async () => {
+      const signer = createMockSigner({
+        dryRunTransaction: successDryRun(),
+        executeTransaction: vi.fn().mockResolvedValue({ digest: "txdigest" }),
+        waitForTransaction: vi.fn().mockRejectedValue(new Error("Transaction timeout")),
+      });
+      const scheme = new ExactSuiFacilitatorScheme(signer);
+
+      const result = await scheme.settle(makePayload(), makeRequirements());
+
+      expect(result.success).toBe(false);
+      expect(result.errorReason).toBe("settlement_error");
+      expect(result.errorMessage).toBe("Transaction timeout");
+    });
+
+    it("returns execution_failed when transaction status is not success", async () => {
+      const signer = createMockSigner({
+        dryRunTransaction: successDryRun(),
+        executeTransaction: vi.fn().mockResolvedValue({ digest: "txdigest" }),
+        waitForTransaction: vi.fn().mockResolvedValue({
+          digest: "txdigest",
+          effects: { status: { status: "failure" } },
+        }),
+      });
+      const scheme = new ExactSuiFacilitatorScheme(signer);
+
+      const result = await scheme.settle(makePayload(), makeRequirements());
+
+      expect(result.success).toBe(false);
+      expect(result.errorReason).toBe("execution_failed");
+      expect(result.errorMessage).toContain("failure");
+      expect(result.transaction).toBe("txdigest");
+    });
+
+    it("returns correct network in settle response", async () => {
+      const signer = createMockSigner({
+        dryRunTransaction: successDryRun(),
+        executeTransaction: vi.fn().mockResolvedValue({ digest: "txdigest" }),
+        waitForTransaction: vi.fn().mockResolvedValue({
+          digest: "txdigest",
+          effects: { status: { status: "success" } },
+        }),
+      });
+      const scheme = new ExactSuiFacilitatorScheme(signer);
+
+      const result = await scheme.settle(makePayload(), makeRequirements());
+
+      expect(result.network).toBe(NETWORK);
+    });
+
+    it("handles non-Error exceptions in settle", async () => {
+      const signer = createMockSigner({
+        dryRunTransaction: successDryRun(),
+        executeTransaction: vi.fn().mockRejectedValue("string error"),
+      });
+      const scheme = new ExactSuiFacilitatorScheme(signer);
+
+      const result = await scheme.settle(makePayload(), makeRequirements());
+
+      expect(result.success).toBe(false);
+      expect(result.errorReason).toBe("settlement_error");
+      expect(result.errorMessage).toBe("Unknown settlement error");
     });
   });
 });

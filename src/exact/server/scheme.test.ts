@@ -1,5 +1,9 @@
-import { describe, expect, it } from "vitest";
-import { USDC_MAINNET_COIN_TYPE, USDC_TESTNET_COIN_TYPE } from "../../constants.js";
+import { describe, expect, it, vi } from "vitest";
+import {
+  USDC_DEVNET_COIN_TYPE,
+  USDC_MAINNET_COIN_TYPE,
+  USDC_TESTNET_COIN_TYPE,
+} from "../../constants.js";
 import { ExactSuiServerScheme } from "./scheme.js";
 
 const NETWORK = "sui:mainnet";
@@ -40,6 +44,92 @@ describe("ExactSuiServerScheme", () => {
     it("throws on unsupported network", async () => {
       const server = new ExactSuiServerScheme();
       await expect(server.parsePrice(1, "eip155:1")).rejects.toThrow("Unsupported Sui network");
+    });
+
+    it("converts zero price to zero amount", async () => {
+      const server = new ExactSuiServerScheme();
+      const result = await server.parsePrice(0, NETWORK);
+
+      expect(result.asset).toBe(USDC_MAINNET_COIN_TYPE);
+      expect(result.amount).toBe("0");
+    });
+
+    it("converts negative number", async () => {
+      const server = new ExactSuiServerScheme();
+      const result = await server.parsePrice(-1, NETWORK);
+
+      // parseFloat handles negatives, convertToTokenAmount will process it
+      expect(result.asset).toBe(USDC_MAINNET_COIN_TYPE);
+      expect(result.amount).toBe("-1000000");
+    });
+
+    it("converts very small number (0.000001)", async () => {
+      const server = new ExactSuiServerScheme();
+      const result = await server.parsePrice(0.000001, NETWORK);
+
+      expect(result.asset).toBe(USDC_MAINNET_COIN_TYPE);
+      expect(result.amount).toBe("1");
+    });
+
+    it("uses correct coin type for devnet", async () => {
+      const server = new ExactSuiServerScheme();
+      const result = await server.parsePrice(1, "sui:devnet");
+
+      expect(result.asset).toBe(USDC_DEVNET_COIN_TYPE);
+    });
+
+    it("uses custom MoneyParser when it returns a value", async () => {
+      const customParser = vi.fn().mockResolvedValue({
+        asset: "custom::coin::COIN",
+        amount: "42000",
+      });
+      const server = new ExactSuiServerScheme([customParser]);
+
+      const result = await server.parsePrice(42, NETWORK);
+
+      expect(customParser).toHaveBeenCalledWith(42, NETWORK);
+      expect(result.asset).toBe("custom::coin::COIN");
+      expect(result.amount).toBe("42000");
+    });
+
+    it("falls back to USDC when custom MoneyParser returns null", async () => {
+      const customParser = vi.fn().mockResolvedValue(null);
+      const server = new ExactSuiServerScheme([customParser]);
+
+      const result = await server.parsePrice(1, NETWORK);
+
+      expect(customParser).toHaveBeenCalledWith(1, NETWORK);
+      expect(result.asset).toBe(USDC_MAINNET_COIN_TYPE);
+      expect(result.amount).toBe("1000000");
+    });
+
+    it("tries multiple parsers in order and uses first non-null result", async () => {
+      const parser1 = vi.fn().mockResolvedValue(null);
+      const parser2 = vi.fn().mockResolvedValue({
+        asset: "second::parser::TOKEN",
+        amount: "100",
+      });
+      const parser3 = vi.fn().mockResolvedValue({
+        asset: "third::parser::TOKEN",
+        amount: "200",
+      });
+      const server = new ExactSuiServerScheme([parser1, parser2, parser3]);
+
+      const result = await server.parsePrice(1, NETWORK);
+
+      expect(parser1).toHaveBeenCalled();
+      expect(parser2).toHaveBeenCalled();
+      expect(parser3).not.toHaveBeenCalled();
+      expect(result.asset).toBe("second::parser::TOKEN");
+    });
+
+    it("converts string price through parseFloat for custom parser", async () => {
+      const customParser = vi.fn().mockResolvedValue(null);
+      const server = new ExactSuiServerScheme([customParser]);
+
+      await server.parsePrice("3.14", NETWORK);
+
+      expect(customParser).toHaveBeenCalledWith(3.14, NETWORK);
     });
   });
 
@@ -108,6 +198,83 @@ describe("ExactSuiServerScheme", () => {
       const result = await server.enhancePaymentRequirements(
         requirements,
         { x402Version: 1, scheme: "exact", network: NETWORK },
+        [],
+      );
+
+      expect(result.extra?.gasOwner).toBeUndefined();
+    });
+
+    it("preserves existing extra fields when adding gasOwner", async () => {
+      const server = new ExactSuiServerScheme();
+      const gasOwnerAddress = `0x${"ab".repeat(32)}`;
+
+      const requirements = {
+        scheme: "exact" as const,
+        network: NETWORK,
+        payTo: `0x${"11".repeat(32)}`,
+        amount: "1000000",
+        asset: USDC_MAINNET_COIN_TYPE,
+        x402Version: 1,
+        extra: { customField: "keep-me", anotherField: 42 },
+      };
+
+      const result = await server.enhancePaymentRequirements(
+        requirements,
+        {
+          x402Version: 1,
+          scheme: "exact",
+          network: NETWORK,
+          extra: { gasOwner: gasOwnerAddress },
+        },
+        [],
+      );
+
+      expect(result.extra?.gasOwner).toBe(gasOwnerAddress);
+      expect(result.extra?.customField).toBe("keep-me");
+      expect(result.extra?.anotherField).toBe(42);
+    });
+
+    it("does not inject gasOwner when supportedKind has no extra", async () => {
+      const server = new ExactSuiServerScheme();
+
+      const requirements = {
+        scheme: "exact" as const,
+        network: NETWORK,
+        payTo: `0x${"11".repeat(32)}`,
+        amount: "1000000",
+        asset: USDC_MAINNET_COIN_TYPE,
+        x402Version: 1,
+      };
+
+      const result = await server.enhancePaymentRequirements(
+        requirements,
+        { x402Version: 1, scheme: "exact", network: NETWORK },
+        [],
+      );
+
+      expect(result.extra).toEqual({});
+    });
+
+    it("does not inject gasOwner when extra.gasOwner is not a string", async () => {
+      const server = new ExactSuiServerScheme();
+
+      const requirements = {
+        scheme: "exact" as const,
+        network: NETWORK,
+        payTo: `0x${"11".repeat(32)}`,
+        amount: "1000000",
+        asset: USDC_MAINNET_COIN_TYPE,
+        x402Version: 1,
+      };
+
+      const result = await server.enhancePaymentRequirements(
+        requirements,
+        {
+          x402Version: 1,
+          scheme: "exact",
+          network: NETWORK,
+          extra: { gasOwner: 12345 },
+        },
         [],
       );
 
