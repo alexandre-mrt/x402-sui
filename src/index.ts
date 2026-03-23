@@ -28,6 +28,17 @@ export { toClientSuiSigner, toFacilitatorSuiSigner } from "./signer.js";
 // Settlement cache
 export { SettlementCache } from "./settlement-cache.js";
 
+// Token registry
+export type { SuiToken } from "./tokens.js";
+export { KNOWN_TOKENS, findTokenBySymbol, findTokenByCoinType } from "./tokens.js";
+
+// Coin metadata cache
+export type { CoinMetadataInfo } from "./coin-metadata.js";
+export { CoinMetadataCache } from "./coin-metadata.js";
+
+// Money parsers
+export { createTokenMoneyParser, createSuiMoneyParser } from "./money-parser.js";
+
 // Scheme implementations + registration
 export { ExactSuiClientScheme, registerExactSuiClientScheme } from "./exact/client/index.js";
 export type { SuiClientConfig } from "./exact/client/index.js";
@@ -59,40 +70,40 @@ export type { PaymentIdentifierInfo } from "./extensions/payment-identifier/inde
 
 // Extensions: Sign-In-With-X (SIWx)
 export {
-  createSIWxPayload,
-  createSIWxRequestHook,
-  createSIWxSettleHook,
-  encodeSIWxHeader,
-  formatSuiSIWxMessage,
-  InMemorySIWxStorage,
   SIGN_IN_WITH_X,
   SIWX_HEADER,
+  formatSuiSIWxMessage,
   verifySuiSIWxSignature,
+  createSIWxPayload,
+  encodeSIWxHeader,
+  createSIWxSettleHook,
+  createSIWxRequestHook,
+  InMemorySIWxStorage,
 } from "./extensions/siwx/index.js";
 export type {
-  AfterSettleHook,
   SIWxExtensionInfo,
   SIWxPayload,
-  SIWxRequestResult,
   SIWxStorage,
+  SIWxRequestResult,
+  AfterSettleHook,
 } from "./extensions/siwx/index.js";
 
 // Extensions: Offer/Receipt
 export {
+  OFFER_RECEIPT,
   createJWS,
+  extractJWSPayload,
+  verifyJWS,
   createOfferReceiptExtension,
   declareOfferReceiptExtension,
-  extractJWSPayload,
   extractOffersFromPaymentRequired,
   extractReceiptFromResponse,
-  OFFER_RECEIPT,
-  verifyJWS,
 } from "./extensions/offer-receipt/index.js";
 export type {
   OfferPayload,
-  OfferReceiptDeclaration,
-  OfferReceiptIssuer,
   ReceiptPayload,
   SignedOffer,
   SignedReceipt,
+  OfferReceiptDeclaration,
+  OfferReceiptIssuer,
 } from "./extensions/offer-receipt/index.js";
