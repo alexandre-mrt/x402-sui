@@ -85,3 +85,36 @@ Implement x402 payment protocol support for the Sui blockchain as a standalone T
 - Files modified: 0
 - Tests: 42 pass / 0 fail
 - Commits: 5
+
+---
+
+## Night Shift Extension — 2026-03-23 (Phase 2)
+
+### Completed
+- [x] Registration functions (registerExactSuiClientScheme, registerExactSuiFacilitatorScheme, registerExactSuiServerScheme)
+- [x] Gas sponsorship: facilitator co-signs as gasOwner, multi-signature execution
+- [x] Facilitator HTTP server (Bun.serve, /supported /verify /settle endpoints)
+- [x] Working E2E example (facilitator + server + client, 3 components)
+- [x] 142 comprehensive edge case tests (up from 42)
+- [x] Updated README with registration helpers, local facilitator, e2e example
+
+### New edge case tests added
+- convertToTokenAmount: zero, negative, large numbers, scientific notation, NaN, empty, whitespace, leading zeros, 0/18 decimals
+- validateSuiAddress: boundary lengths, no prefix, uppercase, special chars
+- Settlement cache: TTL expiration (fake timers), concurrent access (100 keys), prune cycles
+- Facilitator: zero/overflow amounts, overpayment, wrong coin type, empty fields, dryRun exceptions, ObjectOwner, gas sponsorship co-signing, execution failures
+- Server: zero/negative/micro prices, custom MoneyParsers, field preservation
+- Client: single/multiple coins, merging, gas budget/owner, no coins error
+- Registration: wildcard/specific networks, policies, return value chaining
+
+### Decisions made
+- Facilitator HTTP server uses Bun.serve() (no Express dep for core package)
+- E2E example uses manual 402 flow (no @x402/fetch dep needed)
+- Registration functions follow exact SVM pattern for ecosystem consistency
+- Multi-signature support added to FacilitatorSuiSigner.executeTransaction
+
+### Final validation
+- Build: type check passes
+- Tests: 142 pass / 0 fail
+- Lint: pass (0 errors)
+- Visual: N/A

@@ -79,7 +79,38 @@ app.get("/premium/data", (_req, res) => res.json({ data: "paid content" }));
 app.listen(4020);
 ```
 
-See [`examples/`](./examples/) for complete annotated examples.
+### Registration helpers
+
+For integration with `x402Client` / `x402Facilitator` / `x402ResourceServer`:
+
+```ts
+import { x402Client } from "@x402/core/client";
+import { registerExactSuiClientScheme } from "@x402/sui";
+
+const client = new x402Client();
+registerExactSuiClientScheme(client, { signer: clientSigner });
+```
+
+### Local facilitator
+
+Run your own facilitator HTTP server:
+
+```ts
+import { createFacilitatorServer, toFacilitatorSuiSigner } from "@x402/sui";
+
+const server = createFacilitatorServer({
+  port: 4022,
+  signer: toFacilitatorSuiSigner(keypair, "sui:testnet"),
+  networks: ["sui:testnet"],
+});
+console.log(`Facilitator on http://localhost:${server.port}`);
+```
+
+### End-to-end example
+
+See [`examples/e2e/`](./examples/e2e/) for a complete 3-component example (facilitator + server + client) that runs locally.
+
+See [`examples/`](./examples/) for more annotated examples.
 
 ## Architecture
 
@@ -146,6 +177,15 @@ See [`examples/`](./examples/) for complete annotated examples.
 | `ExactSuiClientScheme`       | Client       | Builds and signs payment PTBs           |
 | `ExactSuiServerScheme`       | Server       | Parses prices into USDC asset amounts   |
 | `ExactSuiFacilitatorScheme`  | Facilitator  | Verifies and settles payments on-chain  |
+
+### Registration
+
+| Export                              | Description                                                |
+| ----------------------------------- | ---------------------------------------------------------- |
+| `registerExactSuiClientScheme`      | Register Sui scheme with `x402Client`                      |
+| `registerExactSuiFacilitatorScheme` | Register Sui scheme with `x402Facilitator`                 |
+| `registerExactSuiServerScheme`      | Register Sui scheme with `x402ResourceServer`              |
+| `createFacilitatorServer`           | Create a standalone facilitator HTTP server (Bun.serve)    |
 
 ### Types
 
