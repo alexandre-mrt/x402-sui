@@ -43,3 +43,45 @@ Implement x402 payment protocol support for the Sui blockchain as a standalone T
 - ~3 test files
 - ~2 example files
 - 1 README
+
+## Night Shift Summary — 2026-03-23
+
+### Completed
+- [x] Project scaffold (bun, biome, vitest, tsconfig)
+- [x] GitHub repo created and pushed
+- [x] Core types (ExactSuiPayload)
+- [x] Constants (USDC addresses mainnet/testnet/devnet, CAIP-2 IDs, RPC URLs)
+- [x] Utilities (network normalization, address validation, USDC coin type lookup, amount conversion)
+- [x] Signer interfaces and factories (ClientSuiSigner, FacilitatorSuiSigner)
+- [x] Settlement cache (duplicate prevention with TTL)
+- [x] Client scheme (ExactSuiClientScheme: PTB with SplitCoins + TransferObjects)
+- [x] Facilitator scheme (ExactSuiFacilitatorScheme: dryRun verify + execute settle)
+- [x] Server scheme (ExactSuiServerScheme: USDC price parsing + gasOwner injection)
+- [x] 42 unit tests passing
+- [x] Client and server examples
+- [x] Comprehensive README with architecture diagram
+
+### Decisions made
+- Used SuiJsonRpcClient (not deprecated SuiClient) for Sui SDK v2 compatibility
+- No custom Move contracts: PTBs handle everything natively
+- USDC-only for v0.1 (extensible via MoneyParser chain)
+- Gas sponsorship support via gasOwner in PaymentRequirements.extra
+- Vitest for tests (ecosystem consistency with x402)
+
+### Not completed / Needs review
+- Build script (bun build) not verified: may need adjustment for proper ESM output
+- No integration tests against real Sui testnet
+- No gas sponsorship end-to-end test
+- Package not published to npm
+
+### Final validation
+- Build: N/A (library, type check passes)
+- Tests: 42 pass / 0 fail
+- Lint: pass (0 errors)
+- Visual: N/A
+
+### Stats
+- Files created: 22
+- Files modified: 0
+- Tests: 42 pass / 0 fail
+- Commits: 5
