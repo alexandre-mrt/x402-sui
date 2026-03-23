@@ -21,6 +21,9 @@ export {
 } from "./exact/facilitator/index.js";
 export type { SuiResourceServerConfig } from "./exact/server/index.js";
 export { ExactSuiServerScheme, registerExactSuiServerScheme } from "./exact/server/index.js";
+export type { FacilitatorServerConfig } from "./facilitator/index.js";
+// Facilitator server
+export { createFacilitatorServer } from "./facilitator/index.js";
 // Settlement cache
 export { SettlementCache } from "./settlement-cache.js";
 export type { ClientSuiConfig, ClientSuiSigner, FacilitatorSuiSigner } from "./signer.js";
