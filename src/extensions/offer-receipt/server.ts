@@ -3,6 +3,7 @@ import type {
   ResourceServerExtension,
   SettleResultContext,
 } from "@x402/core/types";
+import { extractJWSPayload } from "./signing.js";
 import type {
   OfferPayload,
   OfferReceiptDeclaration,
@@ -12,7 +13,6 @@ import type {
   SignedReceipt,
 } from "./types.js";
 import { OFFER_RECEIPT } from "./types.js";
-import { extractJWSPayload } from "./signing.js";
 
 const DEFAULT_OFFER_VALIDITY_SECONDS = 300;
 const OFFER_RECEIPT_VERSION = "1";
