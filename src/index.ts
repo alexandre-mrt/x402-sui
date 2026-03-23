@@ -14,6 +14,19 @@ export {
 export { ExactSuiClientScheme } from "./exact/client/index.js";
 export { ExactSuiFacilitatorScheme } from "./exact/facilitator/index.js";
 export { ExactSuiServerScheme } from "./exact/server/index.js";
+// Extensions
+export {
+  appendPaymentIdentifierToExtensions,
+  declarePaymentIdentifierExtension,
+  generatePaymentId,
+  isValidPaymentId,
+  PAYMENT_ID_MAX_LENGTH,
+  PAYMENT_ID_MIN_LENGTH,
+  PAYMENT_ID_PATTERN,
+  PAYMENT_IDENTIFIER,
+  type PaymentIdentifierInfo,
+  paymentIdentifierResourceServerExtension,
+} from "./extensions/payment-identifier/index.js";
 // Settlement cache
 export { SettlementCache } from "./settlement-cache.js";
 export type { ClientSuiConfig, ClientSuiSigner, FacilitatorSuiSigner } from "./signer.js";
