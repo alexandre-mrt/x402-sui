@@ -12,13 +12,17 @@
     }
   },
   "files": ["dist", "README.md", "LICENSE"],
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "build": "bun build ./src/index.ts --outdir ./dist --target node --format esm && bun run build:types",
-    "build:types": "tsc --declaration --emitDeclarationOnly --outDir dist",
+    "build": "tsup",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "bunx biome check --write .",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "prepublishOnly": "bun run build && bun run test && bun run lint"
   },
   "keywords": ["x402", "sui", "payments", "http-402", "stablecoin", "usdc"],
   "license": "Apache-2.0",
@@ -27,12 +31,14 @@
     "url": "https://github.com/alexandremourot/x402-sui.git"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.1",
     "@mysten/sui": "^2.9.1",
     "@x402/core": "^2.8.0"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.8",
     "@types/bun": "latest",
+    "tsup": "^8.5.1",
     "typescript": "^5.9.3",
     "vitest": "^4.1.1"
   },
