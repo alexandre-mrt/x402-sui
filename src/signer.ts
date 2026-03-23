@@ -24,9 +24,13 @@ export interface FacilitatorSuiSigner {
       amount: string;
     }>;
   }>;
+  signTransaction(txBytes: Uint8Array): Promise<{
+    signature: string;
+    bytes: string;
+  }>;
   executeTransaction(
     txBytes: string,
-    signature: string,
+    signatures: string[],
   ): Promise<{
     digest: string;
     effects?: { status: { status: string } };
@@ -78,10 +82,14 @@ export function toFacilitatorSuiSigner(
       };
     },
 
-    async executeTransaction(txBytes: string, signature: string) {
+    async signTransaction(txBytes: Uint8Array) {
+      return signer.signTransaction(txBytes);
+    },
+
+    async executeTransaction(txBytes: string, signatures: string[]) {
       const result = await client.executeTransactionBlock({
         transactionBlock: txBytes,
-        signature,
+        signature: signatures,
         options: {
           showEffects: true,
         },

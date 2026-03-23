@@ -10,10 +10,17 @@ export {
   USDC_MAINNET_COIN_TYPE,
   USDC_TESTNET_COIN_TYPE,
 } from "./constants.js";
+export type { SuiClientConfig } from "./exact/client/index.js";
 // Scheme implementations
-export { ExactSuiClientScheme } from "./exact/client/index.js";
-export { ExactSuiFacilitatorScheme } from "./exact/facilitator/index.js";
-export { ExactSuiServerScheme } from "./exact/server/index.js";
+// Registration functions (for use with x402Client, x402Facilitator, x402ResourceServer)
+export { ExactSuiClientScheme, registerExactSuiClientScheme } from "./exact/client/index.js";
+export type { SuiFacilitatorConfig } from "./exact/facilitator/index.js";
+export {
+  ExactSuiFacilitatorScheme,
+  registerExactSuiFacilitatorScheme,
+} from "./exact/facilitator/index.js";
+export type { SuiResourceServerConfig } from "./exact/server/index.js";
+export { ExactSuiServerScheme, registerExactSuiServerScheme } from "./exact/server/index.js";
 // Settlement cache
 export { SettlementCache } from "./settlement-cache.js";
 export type { ClientSuiConfig, ClientSuiSigner, FacilitatorSuiSigner } from "./signer.js";

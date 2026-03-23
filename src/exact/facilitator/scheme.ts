@@ -144,11 +144,19 @@ export class ExactSuiFacilitatorScheme implements SchemeNetworkFacilitator {
     }
 
     try {
-      // Execute the pre-signed transaction
-      const execResult = await this.signer.executeTransaction(
-        suiPayload.transaction,
-        suiPayload.signature,
-      );
+      // Collect signatures: client signature + optional facilitator co-signature for gas sponsorship
+      const signatures = [suiPayload.signature];
+
+      const gasOwner = requirements.extra?.gasOwner;
+      if (typeof gasOwner === "string") {
+        // Gas-sponsored transaction: facilitator co-signs as gas owner
+        const txBytes = Buffer.from(suiPayload.transaction, "base64");
+        const { signature: facilitatorSig } = await this.signer.signTransaction(txBytes);
+        signatures.push(facilitatorSig);
+      }
+
+      // Execute the transaction with all signatures
+      const execResult = await this.signer.executeTransaction(suiPayload.transaction, signatures);
 
       // Wait for confirmation
       const confirmed = await this.signer.waitForTransaction(execResult.digest);
