@@ -156,19 +156,33 @@ describe("ExactSuiClientScheme", () => {
       expect(mockTxInstance.setGasBudget).toHaveBeenCalledWith(BigInt(50000));
     });
 
-    it("sets gas owner when specified in requirements.extra", async () => {
+    it("uses gas station URL for sponsored transactions", async () => {
       const mockGetCoins = vi.fn().mockResolvedValue({
         data: [{ coinObjectId: "coin-1", balance: "5000000" }],
       });
       vi.mocked(createSuiClient).mockReturnValue({ getCoins: mockGetCoins } as never);
 
-      const gasOwner = `0x${"cc".repeat(32)}`;
+      // Mock global fetch for gas station request
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ transaction: "AQID" }),
+      });
+      globalThis.fetch = mockFetch;
+
       const signer = createMockSigner();
       const scheme = new ExactSuiClientScheme(signer);
 
-      await scheme.createPaymentPayload(1, makeRequirements({ extra: { gasOwner } }));
+      await scheme.createPaymentPayload(
+        1,
+        makeRequirements({
+          extra: { gasStation: "https://gas.example.com/sponsor" },
+        }),
+      );
 
-      expect(mockTxInstance.setGasOwner).toHaveBeenCalledWith(gasOwner);
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://gas.example.com/sponsor",
+        expect.objectContaining({ method: "POST" }),
+      );
     });
 
     it("does not set gas budget when extra is undefined", async () => {

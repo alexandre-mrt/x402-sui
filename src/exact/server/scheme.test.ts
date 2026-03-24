@@ -134,9 +134,9 @@ describe("ExactSuiServerScheme", () => {
   });
 
   describe("enhancePaymentRequirements", () => {
-    it("injects gasOwner from supportedKind.extra", async () => {
+    it("injects gasStation from supportedKind.extra", async () => {
       const server = new ExactSuiServerScheme();
-      const gasOwnerAddress = `0x${"ab".repeat(32)}`;
+      const gasStationUrl = "https://gas.example.com/sponsor";
 
       const requirements = {
         scheme: "exact" as const,
@@ -153,12 +153,12 @@ describe("ExactSuiServerScheme", () => {
           x402Version: 1,
           scheme: "exact",
           network: NETWORK,
-          extra: { gasOwner: gasOwnerAddress },
+          extra: { gasStation: gasStationUrl },
         },
         [],
       );
 
-      expect(result.extra?.gasOwner).toBe(gasOwnerAddress);
+      expect(result.extra?.gasStation).toBe(gasStationUrl);
     });
 
     it("preserves existing extra fields", async () => {
@@ -183,7 +183,7 @@ describe("ExactSuiServerScheme", () => {
       expect(result.extra?.existingField).toBe("value");
     });
 
-    it("does not inject gasOwner when not provided", async () => {
+    it("does not inject gasStation when not provided", async () => {
       const server = new ExactSuiServerScheme();
 
       const requirements = {
@@ -201,12 +201,12 @@ describe("ExactSuiServerScheme", () => {
         [],
       );
 
-      expect(result.extra?.gasOwner).toBeUndefined();
+      expect(result.extra?.gasStation).toBeUndefined();
     });
 
-    it("preserves existing extra fields when adding gasOwner", async () => {
+    it("preserves existing extra fields when adding gasStation", async () => {
       const server = new ExactSuiServerScheme();
-      const gasOwnerAddress = `0x${"ab".repeat(32)}`;
+      const gasStationUrl = "https://gas.example.com/sponsor";
 
       const requirements = {
         scheme: "exact" as const,
@@ -224,17 +224,17 @@ describe("ExactSuiServerScheme", () => {
           x402Version: 1,
           scheme: "exact",
           network: NETWORK,
-          extra: { gasOwner: gasOwnerAddress },
+          extra: { gasStation: gasStationUrl },
         },
         [],
       );
 
-      expect(result.extra?.gasOwner).toBe(gasOwnerAddress);
+      expect(result.extra?.gasStation).toBe(gasStationUrl);
       expect(result.extra?.customField).toBe("keep-me");
       expect(result.extra?.anotherField).toBe(42);
     });
 
-    it("does not inject gasOwner when supportedKind has no extra", async () => {
+    it("does not inject gasStation when supportedKind has no extra", async () => {
       const server = new ExactSuiServerScheme();
 
       const requirements = {
@@ -255,7 +255,7 @@ describe("ExactSuiServerScheme", () => {
       expect(result.extra).toEqual({});
     });
 
-    it("does not inject gasOwner when extra.gasOwner is not a string", async () => {
+    it("does not inject gasStation when extra.gasStation is not a string", async () => {
       const server = new ExactSuiServerScheme();
 
       const requirements = {
@@ -273,12 +273,12 @@ describe("ExactSuiServerScheme", () => {
           x402Version: 1,
           scheme: "exact",
           network: NETWORK,
-          extra: { gasOwner: 12345 },
+          extra: { gasStation: 12345 },
         },
         [],
       );
 
-      expect(result.extra?.gasOwner).toBeUndefined();
+      expect(result.extra?.gasStation).toBeUndefined();
     });
   });
 });

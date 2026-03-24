@@ -12,7 +12,7 @@ vi.mock("@mysten/sui/verify", () => ({
   }),
 }));
 const PAY_TO = `0x${"bb".repeat(32)}`;
-const GAS_OWNER_ADDRESS = `0x${"cc".repeat(32)}`;
+const GAS_STATION_URL = "https://gas.example.com/sponsor";
 const NETWORK = "sui:mainnet";
 
 function createMockSigner(overrides: Partial<FacilitatorSuiSigner> = {}): FacilitatorSuiSigner {
@@ -70,11 +70,20 @@ function successDryRun(amount = "1000000") {
 
 describe("ExactSuiFacilitatorScheme", () => {
   describe("getExtra", () => {
-    it("returns gasOwner from signer addresses", () => {
+    it("returns gasStation URL when configured", () => {
+      const signer = createMockSigner();
+      const scheme = new ExactSuiFacilitatorScheme(signer, undefined, {
+        gasStationUrl: "https://gas.example.com/sponsor",
+      });
+      const extra = scheme.getExtra(NETWORK);
+      expect(extra).toHaveProperty("gasStation", "https://gas.example.com/sponsor");
+    });
+
+    it("returns undefined when no gasStation configured", () => {
       const signer = createMockSigner();
       const scheme = new ExactSuiFacilitatorScheme(signer);
       const extra = scheme.getExtra(NETWORK);
-      expect(extra).toHaveProperty("gasOwner", VALID_ADDRESS);
+      expect(extra).toBeUndefined();
     });
 
     it("returns undefined when signer has no addresses", () => {
@@ -210,7 +219,7 @@ describe("ExactSuiFacilitatorScheme", () => {
       expect(result.isValid).toBe(true);
     });
 
-    it("returns valid when recipient receives more than required", async () => {
+    it("rejects overpayment (strict exact amount per spec)", async () => {
       const signer = createMockSigner({
         dryRunTransaction: vi.fn().mockResolvedValue({
           effects: { status: { status: "success" } },
@@ -232,8 +241,8 @@ describe("ExactSuiFacilitatorScheme", () => {
 
       const result = await scheme.verify(makePayload(), makeRequirements());
 
-      expect(result.isValid).toBe(true);
-      expect(result.payer).toBe(VALID_ADDRESS);
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe("insufficient_payment");
     });
 
     it("returns invalid when coin type does not match", async () => {
@@ -435,11 +444,10 @@ describe("ExactSuiFacilitatorScheme", () => {
       expect(result.errorReason).toBe("simulation_failed");
     });
 
-    it("co-signs as gas sponsor when gasOwner is in requirements.extra", async () => {
+    it("co-signs as gas sponsor when gasStation is in requirements.extra", async () => {
       const signFn = vi.fn().mockResolvedValue({ signature: "facilitator-sig", bytes: "bytes" });
       const executeFn = vi.fn().mockResolvedValue({ digest: "txdigest-gas" });
       const signer = createMockSigner({
-        getAddresses: vi.fn(() => [VALID_ADDRESS, GAS_OWNER_ADDRESS]),
         dryRunTransaction: successDryRun(),
         signTransaction: signFn,
         executeTransaction: executeFn,
@@ -451,7 +459,7 @@ describe("ExactSuiFacilitatorScheme", () => {
       const scheme = new ExactSuiFacilitatorScheme(signer);
 
       const requirements = makeRequirements({
-        extra: { gasOwner: GAS_OWNER_ADDRESS },
+        extra: { gasStation: GAS_STATION_URL },
       });
 
       const result = await scheme.settle(makePayload(), requirements);
@@ -466,7 +474,7 @@ describe("ExactSuiFacilitatorScheme", () => {
       );
     });
 
-    it("executes with single signature when no gasOwner", async () => {
+    it("executes with single signature when no gasStation", async () => {
       const executeFn = vi.fn().mockResolvedValue({ digest: "txdigest" });
       const signer = createMockSigner({
         dryRunTransaction: successDryRun(),
@@ -487,14 +495,13 @@ describe("ExactSuiFacilitatorScheme", () => {
 
     it("returns settlement_error when signTransaction fails", async () => {
       const signer = createMockSigner({
-        getAddresses: vi.fn(() => [VALID_ADDRESS, GAS_OWNER_ADDRESS]),
         dryRunTransaction: successDryRun(),
         signTransaction: vi.fn().mockRejectedValue(new Error("Signing failed")),
       });
       const scheme = new ExactSuiFacilitatorScheme(signer);
 
       const requirements = makeRequirements({
-        extra: { gasOwner: GAS_OWNER_ADDRESS },
+        extra: { gasStation: GAS_STATION_URL },
       });
 
       const result = await scheme.settle(makePayload(), requirements);

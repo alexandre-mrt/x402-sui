@@ -13,25 +13,32 @@ import type { FacilitatorSuiSigner } from "../../signer.js";
 import type { ExactSuiPayload } from "../../types.js";
 import { normalizeNetwork, validateSuiAddress } from "../../utils.js";
 
+export interface ExactSuiFacilitatorOptions {
+  gasStationUrl?: string;
+}
+
 export class ExactSuiFacilitatorScheme implements SchemeNetworkFacilitator {
   readonly scheme = "exact";
   readonly caipFamily = "sui:*";
 
   private readonly settlementCache: SettlementCache;
+  private readonly gasStationUrl?: string;
 
   constructor(
     private readonly signer: FacilitatorSuiSigner,
     settlementCache?: SettlementCache,
+    options?: ExactSuiFacilitatorOptions,
   ) {
     this.settlementCache = settlementCache ?? new SettlementCache();
+    this.gasStationUrl = options?.gasStationUrl;
   }
 
   getExtra(_network: Network): Record<string, unknown> | undefined {
-    const addresses = this.signer.getAddresses();
-    if (addresses.length === 0) return undefined;
-    // Return a random gas owner address for load balancing
-    const gasOwner = addresses[Math.floor(Math.random() * addresses.length)];
-    return { gasOwner };
+    // Per Sui x402 spec: communicate sponsorship via gasStation URL
+    if (this.gasStationUrl) {
+      return { gasStation: this.gasStationUrl };
+    }
+    return undefined;
   }
 
   getSigners(_network: string): string[] {
@@ -92,7 +99,7 @@ export class ExactSuiFacilitatorScheme implements SchemeNetworkFacilitator {
         return (
           bc.owner.AddressOwner === requirements.payTo &&
           bc.coinType === requirements.asset &&
-          BigInt(bc.amount) >= expectedAmount
+          BigInt(bc.amount) === expectedAmount
         );
       });
 
@@ -167,22 +174,10 @@ export class ExactSuiFacilitatorScheme implements SchemeNetworkFacilitator {
       // Collect signatures: client signature + optional facilitator co-signature for gas sponsorship
       const signatures = [suiPayload.signature];
 
-      // Gas-sponsored transaction: facilitator co-signs only if gasOwner differs from payer
-      const gasOwner = requirements.extra?.gasOwner;
-      if (typeof gasOwner === "string" && verifyResult.payer && gasOwner !== verifyResult.payer) {
-        // Security: verify the gasOwner is actually one of our addresses
-        const facilitatorAddresses = this.signer.getAddresses();
-        if (!facilitatorAddresses.includes(gasOwner)) {
-          return {
-            success: false,
-            errorReason: "invalid_gas_owner",
-            errorMessage: `Gas owner ${gasOwner} is not a known facilitator address`,
-            payer: verifyResult.payer,
-            transaction: "",
-            network: requirements.network,
-          };
-        }
-
+      // Gas-sponsored transaction: if gasStation was provided, the facilitator is the sponsor
+      // and must co-sign the transaction before broadcasting
+      const gasStation = requirements.extra?.gasStation;
+      if (typeof gasStation === "string" && verifyResult.payer) {
         const txBytes = Buffer.from(suiPayload.transaction, "base64");
         const { signature: facilitatorSig } = await this.signer.signTransaction(txBytes);
         signatures.push(facilitatorSig);

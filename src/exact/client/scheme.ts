@@ -39,17 +39,19 @@ export class ExactSuiClientScheme implements SchemeNetworkClient {
     }
 
     const client = createSuiClient(paymentRequirements.network, this.config.rpcUrl);
+    const gasStation =
+      typeof paymentRequirements.extra?.gasStation === "string"
+        ? paymentRequirements.extra.gasStation
+        : undefined;
 
     const tx = new Transaction();
     tx.setSender(this.signer.address);
     const isSuiNative = paymentRequirements.asset === "0x2::sui::SUI";
 
     if (isSuiNative) {
-      // For SUI native: split from gas coin directly (avoids gas conflict)
       const splitResult = tx.splitCoins(tx.gas, [amount]);
       tx.transferObjects([splitResult], paymentRequirements.payTo);
     } else {
-      // For other tokens: fetch coin objects and merge if needed
       const coins = await client.getCoins({
         owner: this.signer.address,
         coinType: paymentRequirements.asset,
@@ -61,7 +63,6 @@ export class ExactSuiClientScheme implements SchemeNetworkClient {
         );
       }
 
-      // Verify total balance is sufficient
       const totalBalance = coins.data.reduce((sum, c) => sum + BigInt(c.balance), 0n);
       if (totalBalance < amount) {
         throw new Error(
@@ -91,15 +92,47 @@ export class ExactSuiClientScheme implements SchemeNetworkClient {
       tx.setGasBudget(BigInt(gasBudget));
     }
 
-    // If a gas sponsor (facilitator) is specified and differs from sender, use sponsored transaction
-    const gasOwner = paymentRequirements.extra?.gasOwner;
-    if (typeof gasOwner === "string" && gasOwner !== this.signer.address) {
-      tx.setGasOwner(gasOwner);
-    }
+    let txBytes: Uint8Array;
+    let signature: string;
+    let bytes: string;
 
-    // Build and sign the transaction
-    const txBytes = await tx.build({ client });
-    const { signature, bytes } = await this.signer.signTransaction(txBytes);
+    if (gasStation) {
+      // Sponsored transaction: interactive gas station protocol per Sui x402 spec
+      // 1. Build partial transaction (without gas) as kind-only bytes
+      const partialBytes = await tx.build({ client, onlyTransactionKind: true });
+      const partialBase64 = Buffer.from(partialBytes).toString("base64");
+
+      // 2. Send to gas station to get a complete transaction with gas info
+      const gasStationResponse = await fetch(gasStation, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sender: this.signer.address,
+          transactionKind: partialBase64,
+        }),
+      });
+
+      if (!gasStationResponse.ok) {
+        throw new Error(`Gas station returned ${gasStationResponse.status}`);
+      }
+
+      const gasStationData = (await gasStationResponse.json()) as { transaction: string };
+      if (!gasStationData.transaction) {
+        throw new Error("Gas station did not return a transaction");
+      }
+
+      // 3. Sign the complete transaction from gas station
+      txBytes = Uint8Array.from(Buffer.from(gasStationData.transaction, "base64"));
+      const signed = await this.signer.signTransaction(txBytes);
+      signature = signed.signature;
+      bytes = signed.bytes;
+    } else {
+      // Non-sponsored: build and sign directly
+      txBytes = await tx.build({ client });
+      const signed = await this.signer.signTransaction(txBytes);
+      signature = signed.signature;
+      bytes = signed.bytes;
+    }
 
     const payload: ExactSuiPayload = {
       transaction: bytes,

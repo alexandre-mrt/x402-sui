@@ -52,14 +52,14 @@ export class ExactSuiServerScheme implements SchemeNetworkServer {
     },
     _facilitatorExtensions: string[],
   ): Promise<PaymentRequirements> {
-    // Inject facilitator's gas owner address into the requirements
-    const gasOwner = supportedKind.extra?.gasOwner;
+    // Inject facilitator's gas station URL if available (per Sui x402 spec)
+    const gasStation = supportedKind.extra?.gasStation;
 
     return {
       ...paymentRequirements,
       extra: {
         ...paymentRequirements.extra,
-        ...(typeof gasOwner === "string" ? { gasOwner } : {}),
+        ...(typeof gasStation === "string" ? { gasStation } : {}),
       },
     };
   }
