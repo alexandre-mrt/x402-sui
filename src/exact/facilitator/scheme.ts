@@ -121,8 +121,13 @@ export class ExactSuiFacilitatorScheme implements SchemeNetworkFacilitator {
           ? (payerChange.owner as { AddressOwner: string }).AddressOwner
           : undefined;
 
+      // Payer must be identifiable from balance changes
+      if (!payer) {
+        return invalid("payer_not_found", "Could not determine payer from balance changes");
+      }
+
       // Verify the transaction signer matches the payer (prevents signature substitution)
-      if (payer && signerAddress !== payer) {
+      if (signerAddress !== payer) {
         return invalid(
           "signer_mismatch",
           `Transaction signer ${signerAddress} does not match payer ${payer}`,
@@ -141,7 +146,31 @@ export class ExactSuiFacilitatorScheme implements SchemeNetworkFacilitator {
     requirements: PaymentRequirements,
     context?: FacilitatorContext,
   ): Promise<SettleResponse> {
-    // First verify the payment
+    const suiPayload = payload.payload as unknown as ExactSuiPayload;
+    if (!suiPayload.transaction || !suiPayload.signature) {
+      return {
+        success: false,
+        errorReason: "invalid_payload",
+        errorMessage: "Missing transaction or signature",
+        transaction: "",
+        network: requirements.network,
+      };
+    }
+
+    // Check for duplicate settlement BEFORE verify (prevents TOCTOU race condition)
+    const txDecoded = Buffer.from(suiPayload.transaction, "base64").toString("hex");
+    const cacheKey = `${txDecoded}|${suiPayload.signature}`;
+    if (this.settlementCache.isDuplicate(cacheKey)) {
+      return {
+        success: false,
+        errorReason: "duplicate_settlement",
+        errorMessage: "This payment has already been settled",
+        transaction: "",
+        network: requirements.network,
+      };
+    }
+
+    // Verify the payment
     const verifyResult = await this.verify(payload, requirements, context);
     if (!verifyResult.isValid) {
       return {
@@ -154,30 +183,13 @@ export class ExactSuiFacilitatorScheme implements SchemeNetworkFacilitator {
       };
     }
 
-    const suiPayload = payload.payload as unknown as ExactSuiPayload;
-
-    // Check for duplicate settlement (use decoded bytes to prevent base64 encoding variants bypass)
-    const txDecoded = Buffer.from(suiPayload.transaction, "base64").toString("hex");
-    const cacheKey = `${txDecoded}|${suiPayload.signature}`;
-    if (this.settlementCache.isDuplicate(cacheKey)) {
-      return {
-        success: false,
-        errorReason: "duplicate_settlement",
-        errorMessage: "This payment has already been settled",
-        payer: verifyResult.payer,
-        transaction: "",
-        network: requirements.network,
-      };
-    }
-
     try {
       // Collect signatures: client signature + optional facilitator co-signature for gas sponsorship
       const signatures = [suiPayload.signature];
 
-      // Gas-sponsored transaction: if gasStation was provided, the facilitator is the sponsor
-      // and must co-sign the transaction before broadcasting
-      const gasStation = requirements.extra?.gasStation;
-      if (typeof gasStation === "string" && verifyResult.payer) {
+      // Gas-sponsored transaction: co-sign only if this facilitator is configured as gas sponsor
+      // (uses own config, not attacker-controllable requirements.extra)
+      if (this.gasStationUrl && verifyResult.payer) {
         const txBytes = Buffer.from(suiPayload.transaction, "base64");
         const { signature: facilitatorSig } = await this.signer.signTransaction(txBytes);
         signatures.push(facilitatorSig);

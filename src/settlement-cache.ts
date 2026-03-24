@@ -1,6 +1,7 @@
 import { SETTLEMENT_TTL_MS } from "./constants.js";
 
 const DEFAULT_MAX_SIZE = 100_000;
+const EVICTION_RATIO = 0.1;
 
 export class SettlementCache {
   private readonly entries = new Map<string, number>();
@@ -15,9 +16,14 @@ export class SettlementCache {
     if (this.entries.has(key)) {
       return true;
     }
-    // Reject if cache is full (prevents memory exhaustion DoS)
+    // Evict oldest entries when full (LRU-style) instead of silently disabling protection
     if (this.entries.size >= this.maxSize) {
-      return false;
+      const toRemove = Math.max(1, Math.floor(this.maxSize * EVICTION_RATIO));
+      const iter = this.entries.keys();
+      for (let i = 0; i < toRemove; i++) {
+        const oldest = iter.next().value;
+        if (oldest) this.entries.delete(oldest);
+      }
     }
     this.entries.set(key, Date.now());
     return false;

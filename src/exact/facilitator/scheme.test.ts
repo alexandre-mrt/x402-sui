@@ -199,7 +199,7 @@ describe("ExactSuiFacilitatorScheme", () => {
 
     // --- Edge cases ---
 
-    it("returns valid when amount is zero and balance change is zero", async () => {
+    it("rejects zero amount (no payer identifiable)", async () => {
       const signer = createMockSigner({
         dryRunTransaction: vi.fn().mockResolvedValue({
           effects: { status: { status: "success" } },
@@ -216,7 +216,8 @@ describe("ExactSuiFacilitatorScheme", () => {
 
       const result = await scheme.verify(makePayload(), makeRequirements({ amount: "0" }));
 
-      expect(result.isValid).toBe(true);
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe("payer_not_found");
     });
 
     it("rejects overpayment (strict exact amount per spec)", async () => {
@@ -384,7 +385,7 @@ describe("ExactSuiFacilitatorScheme", () => {
       expect(result.isValid).toBe(true);
     });
 
-    it("returns payer as undefined when no negative balance change exists", async () => {
+    it("rejects when payer cannot be identified (no negative balance change)", async () => {
       const signer = createMockSigner({
         dryRunTransaction: vi.fn().mockResolvedValue({
           effects: { status: { status: "success" } },
@@ -394,7 +395,6 @@ describe("ExactSuiFacilitatorScheme", () => {
               coinType: USDC_MAINNET_COIN_TYPE,
               amount: "1000000",
             },
-            // No negative balance change (payer)
           ],
         }),
       });
@@ -402,8 +402,8 @@ describe("ExactSuiFacilitatorScheme", () => {
 
       const result = await scheme.verify(makePayload(), makeRequirements());
 
-      expect(result.isValid).toBe(true);
-      expect(result.payer).toBeUndefined();
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe("payer_not_found");
     });
   });
 
@@ -444,7 +444,7 @@ describe("ExactSuiFacilitatorScheme", () => {
       expect(result.errorReason).toBe("simulation_failed");
     });
 
-    it("co-signs as gas sponsor when gasStation is in requirements.extra", async () => {
+    it("co-signs as gas sponsor when gasStationUrl is configured", async () => {
       const signFn = vi.fn().mockResolvedValue({ signature: "facilitator-sig", bytes: "bytes" });
       const executeFn = vi.fn().mockResolvedValue({ digest: "txdigest-gas" });
       const signer = createMockSigner({
@@ -456,11 +456,11 @@ describe("ExactSuiFacilitatorScheme", () => {
           effects: { status: { status: "success" } },
         }),
       });
-      const scheme = new ExactSuiFacilitatorScheme(signer);
-
-      const requirements = makeRequirements({
-        extra: { gasStation: GAS_STATION_URL },
+      const scheme = new ExactSuiFacilitatorScheme(signer, undefined, {
+        gasStationUrl: GAS_STATION_URL,
       });
+
+      const requirements = makeRequirements();
 
       const result = await scheme.settle(makePayload(), requirements);
 
@@ -498,11 +498,11 @@ describe("ExactSuiFacilitatorScheme", () => {
         dryRunTransaction: successDryRun(),
         signTransaction: vi.fn().mockRejectedValue(new Error("Signing failed")),
       });
-      const scheme = new ExactSuiFacilitatorScheme(signer);
-
-      const requirements = makeRequirements({
-        extra: { gasStation: GAS_STATION_URL },
+      const scheme = new ExactSuiFacilitatorScheme(signer, undefined, {
+        gasStationUrl: GAS_STATION_URL,
       });
+
+      const requirements = makeRequirements();
 
       const result = await scheme.settle(makePayload(), requirements);
 
