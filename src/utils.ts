@@ -59,11 +59,15 @@ export function getUsdcCoinType(network: Network): string {
 }
 
 export function convertToTokenAmount(decimalAmount: string, decimals: number): string {
-  const amount = Number.parseFloat(decimalAmount);
-  if (Number.isNaN(amount)) {
+  const trimmed = decimalAmount.trim();
+  if (trimmed === "" || !/^-?\d*\.?\d+$/.test(trimmed)) {
     throw new Error(`Invalid amount: ${decimalAmount}`);
   }
-  const [intPart, decPart = ""] = String(amount).split(".");
+  // String-only arithmetic to avoid IEEE 754 floating-point precision loss
+  const negative = trimmed.startsWith("-");
+  const abs = negative ? trimmed.slice(1) : trimmed;
+  const [intPart = "0", decPart = ""] = abs.split(".");
   const paddedDec = decPart.padEnd(decimals, "0").slice(0, decimals);
-  return `${intPart}${paddedDec}`.replace(/^0+/, "") || "0";
+  const raw = `${intPart}${paddedDec}`.replace(/^0+/, "") || "0";
+  return negative && raw !== "0" ? `-${raw}` : raw;
 }

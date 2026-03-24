@@ -24,9 +24,10 @@ export function createTokenMoneyParser(token: SuiToken): MoneyParser {
  */
 export function createSuiMoneyParser(customTokens?: SuiToken[]): MoneyParser {
   return async (amount: number, network: Network): Promise<AssetAmount | null> => {
-    // Check custom tokens first
-    if (customTokens) {
-      for (const token of customTokens) {
+    // Use first custom token if provided (preferred token for this parser)
+    if (customTokens && customTokens.length > 0) {
+      const token = customTokens[0];
+      if (token) {
         return {
           asset: token.coinType,
           amount: convertToTokenAmount(String(amount), token.decimals),

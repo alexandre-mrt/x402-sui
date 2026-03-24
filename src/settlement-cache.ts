@@ -17,9 +17,8 @@ export class SettlementCache {
     for (const [key, timestamp] of this.entries) {
       if (timestamp < cutoff) {
         this.entries.delete(key);
-      } else {
-        break;
       }
+      // No break: entries may not be in strict chronological order
     }
   }
 }

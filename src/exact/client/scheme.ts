@@ -7,7 +7,7 @@ import type {
 } from "@x402/core/types";
 import type { ClientSuiConfig, ClientSuiSigner } from "../../signer.js";
 import type { ExactSuiPayload } from "../../types.js";
-import { createSuiClient } from "../../utils.js";
+import { createSuiClient, validateSuiAddress } from "../../utils.js";
 
 export class ExactSuiClientScheme implements SchemeNetworkClient {
   readonly scheme = "exact";
@@ -22,12 +22,26 @@ export class ExactSuiClientScheme implements SchemeNetworkClient {
     paymentRequirements: PaymentRequirements,
     _context?: PaymentPayloadContext,
   ): Promise<PaymentPayloadResult> {
+    // Validate payTo address
+    if (!validateSuiAddress(paymentRequirements.payTo)) {
+      throw new Error(`Invalid payTo address: ${paymentRequirements.payTo}`);
+    }
+
+    // Validate amount
+    let amount: bigint;
+    try {
+      amount = BigInt(paymentRequirements.amount);
+    } catch {
+      throw new Error(`Invalid payment amount: ${paymentRequirements.amount}`);
+    }
+    if (amount <= 0n) {
+      throw new Error(`Payment amount must be positive, got: ${paymentRequirements.amount}`);
+    }
+
     const client = createSuiClient(paymentRequirements.network, this.config.rpcUrl);
 
     const tx = new Transaction();
     tx.setSender(this.signer.address);
-
-    const amount = BigInt(paymentRequirements.amount);
     const isSuiNative = paymentRequirements.asset === "0x2::sui::SUI";
 
     if (isSuiNative) {
@@ -44,6 +58,14 @@ export class ExactSuiClientScheme implements SchemeNetworkClient {
       if (coins.data.length === 0) {
         throw new Error(
           `No ${paymentRequirements.asset} coins found for address ${this.signer.address}`,
+        );
+      }
+
+      // Verify total balance is sufficient
+      const totalBalance = coins.data.reduce((sum, c) => sum + BigInt(c.balance), 0n);
+      if (totalBalance < amount) {
+        throw new Error(
+          `Insufficient balance: have ${totalBalance}, need ${amount} of ${paymentRequirements.asset}`,
         );
       }
 

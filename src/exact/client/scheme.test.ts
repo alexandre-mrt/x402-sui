@@ -10,6 +10,7 @@ vi.mock("../../utils.js", () => ({
   caipToSuiNetwork: vi.fn(() => "mainnet"),
   normalizeNetwork: vi.fn((n: string) => n),
   getUsdcCoinType: vi.fn(() => "0xusdc::usdc::USDC"),
+  validateSuiAddress: vi.fn(() => true),
 }));
 
 let mockTxInstance: Record<string, ReturnType<typeof vi.fn>>;

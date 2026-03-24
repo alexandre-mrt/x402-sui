@@ -228,9 +228,9 @@ describe("convertToTokenAmount", () => {
     expect(convertToTokenAmount("100", 6)).toBe("100000000");
   });
 
-  it("handles scientific notation (parsed by parseFloat)", () => {
-    // "1e2" is 100 in parseFloat
-    expect(convertToTokenAmount("1e2", 6)).toBe("100000000");
+  it("rejects scientific notation (string-only parsing)", () => {
+    // "1e2" is not a valid decimal string — no floating-point conversion
+    expect(() => convertToTokenAmount("1e2", 6)).toThrow("Invalid amount");
   });
 
   it("throws on NaN string", () => {

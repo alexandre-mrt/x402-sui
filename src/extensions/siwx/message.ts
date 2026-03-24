@@ -1,9 +1,13 @@
 import type { SIWxExtensionInfo } from "./types.js";
 
+function sanitize(value: string): string {
+  return value.replace(/[\n\r]/g, "");
+}
+
 export function formatSuiSIWxMessage(info: SIWxExtensionInfo & { address: string }): string {
   const lines: string[] = [
-    `${info.domain} wants you to sign in with your Sui account:`,
-    info.address,
+    `${sanitize(info.domain)} wants you to sign in with your Sui account:`,
+    sanitize(info.address),
   ];
 
   if (info.statement) {

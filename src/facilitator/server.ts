@@ -70,10 +70,12 @@ async function handleVerify(
   req: Request,
   headers: Record<string, string>,
 ): Promise<Response> {
-  const body = (await req.json()) as {
-    paymentPayload?: PaymentPayload;
-    paymentRequirements?: PaymentRequirements;
-  };
+  let body: { paymentPayload?: PaymentPayload; paymentRequirements?: PaymentRequirements };
+  try {
+    body = (await req.json()) as typeof body;
+  } catch {
+    return Response.json({ error: "Invalid JSON body" }, { status: 400, headers });
+  }
 
   if (!body.paymentPayload || !body.paymentRequirements) {
     return Response.json(
@@ -92,10 +94,12 @@ async function handleSettle(
   req: Request,
   headers: Record<string, string>,
 ): Promise<Response> {
-  const body = (await req.json()) as {
-    paymentPayload?: PaymentPayload;
-    paymentRequirements?: PaymentRequirements;
-  };
+  let body: { paymentPayload?: PaymentPayload; paymentRequirements?: PaymentRequirements };
+  try {
+    body = (await req.json()) as typeof body;
+  } catch {
+    return Response.json({ error: "Invalid JSON body" }, { status: 400, headers });
+  }
 
   if (!body.paymentPayload || !body.paymentRequirements) {
     return Response.json(
