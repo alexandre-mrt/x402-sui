@@ -306,7 +306,7 @@ describe("ExactSuiFacilitatorScheme", () => {
       expect(result.invalidMessage).toBe("RPC connection failed");
     });
 
-    it("handles multiple balance changes with same coin type for different owners", async () => {
+    it("rejects transactions with unexpected third-party balance changes (PTB injection)", async () => {
       const thirdParty = `0x${"cc".repeat(32)}`;
       const signer = createMockSigner({
         dryRunTransaction: vi.fn().mockResolvedValue({
@@ -315,7 +315,7 @@ describe("ExactSuiFacilitatorScheme", () => {
             {
               owner: { AddressOwner: thirdParty },
               coinType: USDC_MAINNET_COIN_TYPE,
-              amount: "500000", // not enough for a different address
+              amount: "500000", // unexpected: third party receives funds
             },
             {
               owner: { AddressOwner: PAY_TO },
@@ -334,8 +334,8 @@ describe("ExactSuiFacilitatorScheme", () => {
 
       const result = await scheme.verify(makePayload(), makeRequirements());
 
-      expect(result.isValid).toBe(true);
-      expect(result.payer).toBe(VALID_ADDRESS);
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe("unexpected_side_effects");
     });
 
     it("ignores balance changes with ObjectOwner (not AddressOwner)", async () => {

@@ -134,6 +134,28 @@ export class ExactSuiFacilitatorScheme implements SchemeNetworkFacilitator {
         );
       }
 
+      // Verify no unexpected side effects (prevents PTB injection attacks)
+      const unexpectedChanges = dryRunResult.balanceChanges.filter((bc) => {
+        if (!("AddressOwner" in bc.owner)) return true; // non-address owners are unexpected
+        const addr = (bc.owner as { AddressOwner: string }).AddressOwner;
+        // Expected: recipient gains the exact payment amount
+        if (addr === requirements.payTo && bc.coinType === requirements.asset) return false;
+        // Expected: payer loses the payment amount
+        if (addr === payer && bc.coinType === requirements.asset && BigInt(bc.amount) < 0n)
+          return false;
+        // Expected: payer pays gas in SUI
+        if (addr === payer && bc.coinType === "0x2::sui::SUI") return false;
+        // Everything else is unexpected
+        return true;
+      });
+
+      if (unexpectedChanges.length > 0) {
+        return invalid(
+          "unexpected_side_effects",
+          "Transaction contains unexpected balance changes beyond the payment",
+        );
+      }
+
       return { isValid: true, payer };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown verification error";

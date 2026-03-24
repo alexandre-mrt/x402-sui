@@ -31,6 +31,6 @@ export interface SIWxPayload {
 export interface SIWxStorage {
   hasPaid(resource: string, address: string): Promise<boolean>;
   recordPayment(resource: string, address: string): Promise<void>;
-  hasUsedNonce?(nonce: string): Promise<boolean>;
-  recordNonce?(nonce: string): Promise<void>;
+  hasUsedNonce(nonce: string): Promise<boolean>;
+  recordNonce(nonce: string): Promise<void>;
 }

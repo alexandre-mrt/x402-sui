@@ -37,6 +37,12 @@ export function createFacilitatorServer(config: FacilitatorServerConfig) {
       }
 
       try {
+        // Reject oversized request bodies (1MB max, prevents OOM)
+        const contentLength = req.headers.get("content-length");
+        if (contentLength && Number.parseInt(contentLength, 10) > 1_048_576) {
+          return Response.json({ error: "Request body too large" }, { status: 413, headers });
+        }
+
         if (url.pathname === "/supported" && req.method === "GET") {
           return handleSupported(facilitator, headers);
         }
@@ -50,9 +56,9 @@ export function createFacilitatorServer(config: FacilitatorServerConfig) {
         }
 
         return Response.json({ error: "Not found" }, { status: 404, headers });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "Internal server error";
-        return Response.json({ error: message }, { status: 500, headers });
+      } catch {
+        // Generic error message to avoid leaking internal state
+        return Response.json({ error: "Internal server error" }, { status: 500, headers });
       }
     },
   });

@@ -11,12 +11,12 @@ export function formatSuiSIWxMessage(info: SIWxExtensionInfo & { address: string
   ];
 
   if (info.statement) {
-    lines.push("", info.statement);
+    lines.push("", sanitize(info.statement));
   }
 
   lines.push(
     "",
-    `URI: ${info.uri}`,
+    `URI: ${sanitize(info.uri)}`,
     `Version: ${info.version}`,
     `Chain ID: ${info.chainId}`,
     `Nonce: ${info.nonce}`,

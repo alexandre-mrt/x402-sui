@@ -16,18 +16,19 @@ export interface SIWxRequestResult {
 }
 
 export interface SIWxRequestHookOptions {
-  expectedDomain?: string;
+  /** Required: prevents cross-domain credential replay */
+  expectedDomain: string;
   expectedUri?: string;
   maxIssuedAtAgeMs?: number;
   clockSkewToleranceMs?: number;
 }
 
-const DEFAULT_MAX_ISSUED_AT_AGE_MS = 5 * 60 * 1000; // 5 minutes
-const DEFAULT_CLOCK_SKEW_MS = 30 * 1000; // 30 seconds
+const DEFAULT_MAX_ISSUED_AT_AGE_MS = 5 * 60 * 1000;
+const DEFAULT_CLOCK_SKEW_MS = 30 * 1000;
 
 export function createSIWxRequestHook(
   storage: SIWxStorage,
-  options: SIWxRequestHookOptions = {},
+  options: SIWxRequestHookOptions,
 ): (headers: Record<string, string>, resourceUrl: string) => Promise<SIWxRequestResult> {
   const maxAge = options.maxIssuedAtAgeMs ?? DEFAULT_MAX_ISSUED_AT_AGE_MS;
   const clockSkew = options.clockSkewToleranceMs ?? DEFAULT_CLOCK_SKEW_MS;
@@ -53,20 +54,25 @@ export function createSIWxRequestHook(
       return { granted: false };
     }
 
-    // Validate domain binding (prevents cross-domain replay)
-    if (options.expectedDomain && payload.domain !== options.expectedDomain) {
+    // Domain binding is mandatory (prevents cross-domain replay)
+    if (payload.domain !== options.expectedDomain) {
       return { granted: false };
     }
 
-    // Validate URI binding
+    // URI binding (if configured)
     if (options.expectedUri && payload.uri !== options.expectedUri) {
       return { granted: false };
     }
 
     const now = Date.now();
 
-    // Validate issuedAt is not in the future (with clock skew tolerance)
+    // Validate issuedAt is a valid date (prevents NaN bypass)
     const issuedAt = new Date(payload.issuedAt).getTime();
+    if (Number.isNaN(issuedAt)) {
+      return { granted: false };
+    }
+
+    // Validate issuedAt is not in the future
     if (issuedAt > now + clockSkew) {
       return { granted: false };
     }
@@ -79,17 +85,15 @@ export function createSIWxRequestHook(
     // Validate expiration
     if (payload.expirationTime) {
       const expiration = new Date(payload.expirationTime).getTime();
-      if (expiration <= now) {
+      if (Number.isNaN(expiration) || expiration <= now) {
         return { granted: false };
       }
     }
 
-    // Check nonce replay
-    if (storage.hasUsedNonce) {
-      const used = await storage.hasUsedNonce(payload.nonce);
-      if (used) {
-        return { granted: false };
-      }
+    // Check nonce replay (now mandatory on SIWxStorage)
+    const used = await storage.hasUsedNonce(payload.nonce);
+    if (used) {
+      return { granted: false };
     }
 
     // Verify cryptographic signature
@@ -105,9 +109,7 @@ export function createSIWxRequestHook(
     }
 
     // Record nonce to prevent replay
-    if (storage.recordNonce) {
-      await storage.recordNonce(payload.nonce);
-    }
+    await storage.recordNonce(payload.nonce);
 
     return { granted: true, address: payload.address };
   };
