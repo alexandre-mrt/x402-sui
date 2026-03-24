@@ -1,5 +1,5 @@
 export { createSIWxPayload, encodeSIWxHeader } from "./client.js";
-export type { AfterSettleHook, SIWxRequestResult } from "./hooks.js";
+export type { AfterSettleHook, SIWxRequestHookOptions, SIWxRequestResult } from "./hooks.js";
 export { createSIWxRequestHook, createSIWxSettleHook } from "./hooks.js";
 export { formatSuiSIWxMessage } from "./message.js";
 export { InMemorySIWxStorage } from "./storage.js";

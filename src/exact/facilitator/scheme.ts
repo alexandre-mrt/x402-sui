@@ -149,8 +149,9 @@ export class ExactSuiFacilitatorScheme implements SchemeNetworkFacilitator {
 
     const suiPayload = payload.payload as unknown as ExactSuiPayload;
 
-    // Check for duplicate settlement
-    const cacheKey = `${suiPayload.transaction}:${suiPayload.signature}`;
+    // Check for duplicate settlement (use decoded bytes to prevent base64 encoding variants bypass)
+    const txDecoded = Buffer.from(suiPayload.transaction, "base64").toString("hex");
+    const cacheKey = `${txDecoded}|${suiPayload.signature}`;
     if (this.settlementCache.isDuplicate(cacheKey)) {
       return {
         success: false,
@@ -169,6 +170,19 @@ export class ExactSuiFacilitatorScheme implements SchemeNetworkFacilitator {
       // Gas-sponsored transaction: facilitator co-signs only if gasOwner differs from payer
       const gasOwner = requirements.extra?.gasOwner;
       if (typeof gasOwner === "string" && verifyResult.payer && gasOwner !== verifyResult.payer) {
+        // Security: verify the gasOwner is actually one of our addresses
+        const facilitatorAddresses = this.signer.getAddresses();
+        if (!facilitatorAddresses.includes(gasOwner)) {
+          return {
+            success: false,
+            errorReason: "invalid_gas_owner",
+            errorMessage: `Gas owner ${gasOwner} is not a known facilitator address`,
+            payer: verifyResult.payer,
+            transaction: "",
+            network: requirements.network,
+          };
+        }
+
         const txBytes = Buffer.from(suiPayload.transaction, "base64");
         const { signature: facilitatorSig } = await this.signer.signTransaction(txBytes);
         signatures.push(facilitatorSig);

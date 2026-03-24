@@ -439,6 +439,7 @@ describe("ExactSuiFacilitatorScheme", () => {
       const signFn = vi.fn().mockResolvedValue({ signature: "facilitator-sig", bytes: "bytes" });
       const executeFn = vi.fn().mockResolvedValue({ digest: "txdigest-gas" });
       const signer = createMockSigner({
+        getAddresses: vi.fn(() => [VALID_ADDRESS, GAS_OWNER_ADDRESS]),
         dryRunTransaction: successDryRun(),
         signTransaction: signFn,
         executeTransaction: executeFn,
@@ -486,6 +487,7 @@ describe("ExactSuiFacilitatorScheme", () => {
 
     it("returns settlement_error when signTransaction fails", async () => {
       const signer = createMockSigner({
+        getAddresses: vi.fn(() => [VALID_ADDRESS, GAS_OWNER_ADDRESS]),
         dryRunTransaction: successDryRun(),
         signTransaction: vi.fn().mockRejectedValue(new Error("Signing failed")),
       });

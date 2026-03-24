@@ -15,9 +15,23 @@ export interface SIWxRequestResult {
   address?: string;
 }
 
+export interface SIWxRequestHookOptions {
+  expectedDomain?: string;
+  expectedUri?: string;
+  maxIssuedAtAgeMs?: number;
+  clockSkewToleranceMs?: number;
+}
+
+const DEFAULT_MAX_ISSUED_AT_AGE_MS = 5 * 60 * 1000; // 5 minutes
+const DEFAULT_CLOCK_SKEW_MS = 30 * 1000; // 30 seconds
+
 export function createSIWxRequestHook(
   storage: SIWxStorage,
+  options: SIWxRequestHookOptions = {},
 ): (headers: Record<string, string>, resourceUrl: string) => Promise<SIWxRequestResult> {
+  const maxAge = options.maxIssuedAtAgeMs ?? DEFAULT_MAX_ISSUED_AT_AGE_MS;
+  const clockSkew = options.clockSkewToleranceMs ?? DEFAULT_CLOCK_SKEW_MS;
+
   return async (
     headers: Record<string, string>,
     resourceUrl: string,
@@ -39,13 +53,38 @@ export function createSIWxRequestHook(
       return { granted: false };
     }
 
+    // Validate domain binding (prevents cross-domain replay)
+    if (options.expectedDomain && payload.domain !== options.expectedDomain) {
+      return { granted: false };
+    }
+
+    // Validate URI binding
+    if (options.expectedUri && payload.uri !== options.expectedUri) {
+      return { granted: false };
+    }
+
+    const now = Date.now();
+
+    // Validate issuedAt is not in the future (with clock skew tolerance)
+    const issuedAt = new Date(payload.issuedAt).getTime();
+    if (issuedAt > now + clockSkew) {
+      return { granted: false };
+    }
+
+    // Validate issuedAt is not too old
+    if (now - issuedAt > maxAge) {
+      return { granted: false };
+    }
+
+    // Validate expiration
     if (payload.expirationTime) {
-      const expiration = new Date(payload.expirationTime);
-      if (expiration <= new Date()) {
+      const expiration = new Date(payload.expirationTime).getTime();
+      if (expiration <= now) {
         return { granted: false };
       }
     }
 
+    // Check nonce replay
     if (storage.hasUsedNonce) {
       const used = await storage.hasUsedNonce(payload.nonce);
       if (used) {
@@ -53,16 +92,19 @@ export function createSIWxRequestHook(
       }
     }
 
+    // Verify cryptographic signature
     const signatureValid = await verifySuiSIWxSignature(payload);
     if (!signatureValid) {
       return { granted: false };
     }
 
+    // Check payment history
     const hasPaid = await storage.hasPaid(resourceUrl, payload.address);
     if (!hasPaid) {
       return { granted: false };
     }
 
+    // Record nonce to prevent replay
     if (storage.recordNonce) {
       await storage.recordNonce(payload.nonce);
     }
