@@ -7,7 +7,7 @@ export default defineConfig({
   clean: true,
   sourcemap: true,
   target: "node18",
-  external: ["@mysten/sui", "@x402/core", "@modelcontextprotocol/sdk"],
+  external: ["@mysten/sui", "@x402/core", "@modelcontextprotocol/sdk", "jose"],
   splitting: false,
   treeshake: true,
 });
