@@ -37,12 +37,6 @@ export const KNOWN_TOKENS: Record<string, SuiToken[]> = {
       decimals: 6,
       name: "Wrapped USDT",
     },
-    {
-      symbol: "FDUSD",
-      coinType: "0xf16e6b723f242ec745dfd7634ad072c42d5c1d9ac9571571571571571571::fdusd::FDUSD",
-      decimals: 6,
-      name: "First Digital USD",
-    },
   ],
   "sui:testnet": [
     {
