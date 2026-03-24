@@ -135,6 +135,7 @@ export class ExactSuiFacilitatorScheme implements SchemeNetworkFacilitator {
       }
 
       // Verify no unexpected side effects (prevents PTB injection attacks)
+      const facilitatorAddresses = new Set(this.signer.getAddresses());
       const unexpectedChanges = dryRunResult.balanceChanges.filter((bc) => {
         if (!("AddressOwner" in bc.owner)) return true; // non-address owners are unexpected
         const addr = (bc.owner as { AddressOwner: string }).AddressOwner;
@@ -145,6 +146,8 @@ export class ExactSuiFacilitatorScheme implements SchemeNetworkFacilitator {
           return false;
         // Expected: payer pays gas in SUI
         if (addr === payer && bc.coinType === "0x2::sui::SUI") return false;
+        // Expected: facilitator pays gas in sponsored transactions
+        if (facilitatorAddresses.has(addr) && bc.coinType === "0x2::sui::SUI") return false;
         // Everything else is unexpected
         return true;
       });
