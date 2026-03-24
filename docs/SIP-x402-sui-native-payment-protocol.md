@@ -13,25 +13,27 @@
 
 ## Abstract
 
-This SIP defines two x402 payment schemes for Sui (`exact_sui` and `upto_sui`) backed by a Move module that creates on-chain payment authorizations. It replaces the existing pre-signed transfer approach with shared authorization objects that support metered billing, cancellation, and facilitator-restricted settlement.
+This SIP defines two x402 payment schemes for Sui (`exact_sui` and `upto_sui`) backed by a Move module that creates on-chain payment authorizations. It extends the existing PTB-based approach (implemented in [`@x402/sui`](https://github.com/alexandre-mrt/x402-sui)) with shared authorization objects that support metered billing, cancellation, and facilitator-restricted settlement.
 
 ## Motivation
 
-Coinbase's x402 protocol already has a basic Sui spec (`scheme_exact_sui.md`) that works by pre-signing `Coin<T>` transfers. It's simple, but it can't do three things we need:
+We've already built and shipped a working x402 implementation for Sui ([`@x402/sui`](https://github.com/alexandre-mrt/x402-sui)). It follows Coinbase's `scheme_exact_sui.md` spec: the client builds a PTB with `SplitCoins` + `TransferObjects`, signs it, and the facilitator dry-runs then executes the pre-signed transaction. No custom Move contracts. 42 tests passing, USDC on testnet and mainnet, gas sponsorship via `extra.gasOwner`. It works.
 
-1. **Metered billing.** The basic spec fixes the amount at signing time. If you're billing per LLM token or per MB of bandwidth, you don't know the final cost upfront. You need an `upto` scheme where the payer authorizes a ceiling and the facilitator settles the actual amount.
+But after building it, we hit three walls that the basic approach can't solve:
 
-2. **On-chain authorization state.** With pre-signed transfers, the facilitator holds an opaque signed blob. The payer can't verify what's pending, and if the facilitator goes offline, there's no way to cancel. We want the authorization to be a visible, queryable on-chain object.
+1. **Metered billing.** The PTB approach fixes the transfer amount at signing time. If you're billing per LLM token or per MB transferred, you don't know the final cost when the client signs. You need an `upto` scheme where the payer locks a ceiling and the facilitator settles the actual consumption amount.
 
-3. **Cancellation.** Once you sign a transfer, you can't take it back unless the facilitator cooperates. An on-chain authorization can be cancelled by the payer directly.
+2. **On-chain authorization state.** With pre-signed transactions, the facilitator holds an opaque blob. The payer can't query what's pending on-chain. If the facilitator goes offline, the signed transaction just sits there, and the payer has no recourse. We want authorizations to be visible, queryable shared objects.
 
-This SIP addresses all three by introducing a `x402::payment` Move module with shared `PaymentAuthorization` objects, access-controlled settlement, and explicit cancellation.
+3. **Cancellation.** Once you sign a `SplitCoins` + `TransferObjects` PTB, you can't revoke it without the facilitator's cooperation. An on-chain `PaymentAuthorization` object can be cancelled by the payer directly, returning locked funds.
 
-### Why build this on Sui specifically?
+This SIP introduces a `x402::payment` Move module that addresses all three. It's designed to coexist with the basic PTB scheme: services that only need fixed-price payments can keep using `@x402/sui` as-is. The Move-based scheme is for cases where metered billing, cancellation, or on-chain verifiability matter.
 
-Sui's object model maps well to this design. PTBs let us compose the full authorize-split-transfer-emit flow atomically. Sponsored transactions mean the facilitator covers gas, so payers holding only USDC don't need SUI. And zkLogin gives AI agents a way to create ephemeral wallets via OAuth without managing keys, which is the main use case x402 targets.
+### Design tradeoffs we're making
 
-The tradeoff: because `PaymentAuthorization` is a shared object, both authorization and settlement go through consensus (~2-3s) instead of the fast path (~400ms). We think that's acceptable. The resource is served after a dry-run verification, not after on-chain settlement, so users don't wait for consensus. For latency-critical cases where `upto` and cancellation aren't needed, the basic `scheme_exact_sui` remains available.
+Sui's object model fits this well. PTBs compose the authorize-split-transfer-emit flow atomically, sponsored transactions let the facilitator cover gas (so USDC-only payers don't need SUI), and zkLogin gives AI agents ephemeral wallets via OAuth.
+
+The cost: `PaymentAuthorization` is a shared object, so both authorization and settlement go through consensus (~2-3s) instead of the fast path (~400ms) that the basic scheme gets with owned-object transfers. We think that's fine. The resource is served after dry-run verification, not after on-chain settlement, so users don't actually wait for consensus. For latency-sensitive use cases, the basic `@x402/sui` scheme remains available.
 
 ## Specification
 
@@ -401,14 +403,15 @@ The server advertises payment requirements via the `PAYMENT-REQUIRED` header:
       "network": "sui:mainnet",
       "maxAmountRequired": "1000000",
       "resource": "https://api.example.com/v1/generate",
-      "description": "1 MIST per API call",
+      "description": "0.01 USDC per API call",
       "mimeType": "application/json",
-      "payTo": "0xabcdef...",
-      "asset": "0x2::sui::SUI",
+      "payTo": "0x<resource_owner_sui_address>",
+      "asset": "0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC",
       "maxTimeoutSeconds": 30,
       "outputSchema": null,
       "extra": {
-        "facilitatorUrl": "https://facilitator.example.com"
+        "facilitatorUrl": "https://facilitator.example.com",
+        "gasOwner": "0x<facilitator_address_for_sponsorship>"
       }
     }
   ]
@@ -417,12 +420,13 @@ The server advertises payment requirements via the `PAYMENT-REQUIRED` header:
 
 ### 7. Supported assets
 
-| Asset | Coin Type | Decimals |
-|-------|-----------|----------|
-| SUI | `0x2::sui::SUI` | 9 (MIST) |
-| USDC | `<deployed_usdc_address>::usdc::USDC` | 6 |
+| Asset | Network | Coin Type | Decimals |
+|-------|---------|-----------|----------|
+| SUI | all | `0x2::sui::SUI` | 9 (MIST) |
+| USDC | mainnet | `0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC` | 6 |
+| USDC | testnet | `0xa1ec7fc00a6f40db9693ad1415d0c193ad3906494428cf252621037bd7117e29::usdc::USDC` | 6 |
 
-Any fungible `Coin<T>` type on Sui can be used. The facilitator advertises supported assets via `GET /supported`.
+These are the same USDC coin types used by the `@x402/sui` SDK. Any fungible `Coin<T>` type on Sui can be used; the facilitator advertises supported assets via `GET /supported`.
 
 ### 8. zkLogin integration
 
@@ -446,9 +450,11 @@ This SIP is designed to work with both models. The `PaymentAuthorization` struct
 
 ## Rationale
 
-### Extending the basic spec vs. starting from scratch
+### Extending the basic scheme vs. starting from scratch
 
-The existing `scheme_exact_sui.md` is intentionally minimal: sign a transfer, broadcast it. That's fine for fixed-price API calls. But the moment you need variable pricing (LLM tokens, bandwidth), the payer can't know the amount at signing time. And if the facilitator disappears, the payer has no on-chain recourse. We considered sticking with the basic spec and bolting on features, but the limitations are structural. You can't retrofit cancellation or metered billing onto a pre-signed transfer.
+We built `@x402/sui` as a complete TypeScript SDK implementing the basic `scheme_exact_sui` spec: client builds a `SplitCoins` + `TransferObjects` PTB, signs it with Ed25519, facilitator dry-runs then executes. It works well for fixed-price payments. The `ExactSuiFacilitatorScheme` verifies balance changes from the dry-run, the `SettlementCache` prevents duplicate settlement, and gas sponsorship is handled via the `extra.gasOwner` field in `PaymentRequirements`.
+
+But the limitations showed up quickly. We couldn't add metered billing because the amount is baked into the PTB at signing time. We couldn't add cancellation because a signed PTB can be executed by anyone who has it. And we couldn't give payers visibility into pending authorizations because the signed transaction is just a base64 blob sitting in the facilitator's memory. These aren't implementation bugs; they're structural constraints of the pre-signed transfer approach.
 
 ### On-chain objects vs. off-chain signatures
 
@@ -543,17 +549,27 @@ Test vectors will be provided with the reference implementation. The minimum set
 
 ## Reference Implementation
 
-A reference implementation will be provided as a separate repository containing:
+The basic `exact_sui` scheme (PTB-based, no Move contracts) is already implemented and tested:
+
+- **Repository**: [`@x402/sui`](https://github.com/alexandre-mrt/x402-sui) (TypeScript, 42 tests passing)
+- **Client**: `ExactSuiClientScheme` builds `SplitCoins` + `TransferObjects` PTBs
+- **Facilitator**: `ExactSuiFacilitatorScheme` with dry-run verification, balance change checks, `SettlementCache` for duplicate prevention
+- **Server**: `ExactSuiServerScheme` with Express middleware, USDC price parsing, `gasOwner` injection
+- **Networks**: `sui:mainnet`, `sui:testnet`, `sui:devnet` with Circle USDC addresses
+
+The Move module defined in this SIP (`x402::payment`) extends the above with on-chain authorization objects. The reference implementation for the Move-based scheme will be added to the same repository:
+
 1. Move module (`x402::payment`) deployable on Sui testnet
-2. TypeScript SDK (`@x402/sui`) compatible with the x402 monorepo structure
-3. Facilitator adapter for the Sui scheme
-4. Example: Express.js server with x402 paywall accepting SUI/USDC on Sui
+2. `UptoSuiClientScheme` and `UptoSuiFacilitatorScheme` TypeScript classes
+3. Updated facilitator with `settle_upto` support
+4. Integration tests against Sui testnet with sponsored transactions
 
 ## References
 
-1. [x402 Protocol Specification v2](https://github.com/coinbase/x402)
-2. [x402 Sui Exact Scheme Spec](https://github.com/coinbase/x402/blob/main/specs/schemes/exact/scheme_exact_sui.md)
-3. [x402 Whitepaper](https://www.x402.org/x402-whitepaper.pdf)
+1. [@x402/sui Reference Implementation](https://github.com/alexandre-mrt/x402-sui)
+2. [x402 Protocol Specification v2](https://github.com/coinbase/x402)
+3. [x402 Sui Exact Scheme Spec](https://github.com/coinbase/x402/blob/main/specs/schemes/exact/scheme_exact_sui.md)
+4. [x402 Whitepaper](https://www.x402.org/x402-whitepaper.pdf)
 3. [SIP-58: Sui Address Balances](https://github.com/sui-foundation/sips)
 4. [Sui Programmable Transaction Blocks](https://docs.sui.io/concepts/transactions/prog-txn-blocks)
 5. [Sui Sponsored Transactions](https://docs.sui.io/concepts/transactions/sponsored-transactions)
