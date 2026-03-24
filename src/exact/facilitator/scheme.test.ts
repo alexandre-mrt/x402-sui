@@ -4,6 +4,13 @@ import type { FacilitatorSuiSigner } from "../../signer.js";
 import { ExactSuiFacilitatorScheme } from "./scheme.js";
 
 const VALID_ADDRESS = `0x${"aa".repeat(32)}`;
+
+// Mock @mysten/sui/verify to avoid needing real crypto in unit tests
+vi.mock("@mysten/sui/verify", () => ({
+  verifyTransactionSignature: vi.fn().mockResolvedValue({
+    toSuiAddress: () => VALID_ADDRESS,
+  }),
+}));
 const PAY_TO = `0x${"bb".repeat(32)}`;
 const GAS_OWNER_ADDRESS = `0x${"cc".repeat(32)}`;
 const NETWORK = "sui:mainnet";

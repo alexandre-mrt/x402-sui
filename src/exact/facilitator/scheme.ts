@@ -1,3 +1,4 @@
+import { verifyTransactionSignature } from "@mysten/sui/verify";
 import type {
   FacilitatorContext,
   Network,
@@ -66,6 +67,16 @@ export class ExactSuiFacilitatorScheme implements SchemeNetworkFacilitator {
         return invalid("invalid_payload", "Missing transaction or signature in payload");
       }
 
+      // Verify the cryptographic signature over the transaction bytes
+      let signerAddress: string;
+      try {
+        const txBytes = Uint8Array.from(Buffer.from(suiPayload.transaction, "base64"));
+        const publicKey = await verifyTransactionSignature(txBytes, suiPayload.signature);
+        signerAddress = publicKey.toSuiAddress();
+      } catch {
+        return invalid("invalid_signature", "Transaction signature verification failed");
+      }
+
       // Dry-run the transaction to validate it
       const dryRunResult = await this.signer.dryRunTransaction(suiPayload.transaction);
 
@@ -102,6 +113,14 @@ export class ExactSuiFacilitatorScheme implements SchemeNetworkFacilitator {
         payerChange && "AddressOwner" in payerChange.owner
           ? (payerChange.owner as { AddressOwner: string }).AddressOwner
           : undefined;
+
+      // Verify the transaction signer matches the payer (prevents signature substitution)
+      if (payer && signerAddress !== payer) {
+        return invalid(
+          "signer_mismatch",
+          `Transaction signer ${signerAddress} does not match payer ${payer}`,
+        );
+      }
 
       return { isValid: true, payer };
     } catch (error) {
